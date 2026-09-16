@@ -1,0 +1,77 @@
+{
+  "registry_type": "operators",
+  "registry_version": "0.1",
+  "description": "Standard graph and model operators for OMLE v0.1.",
+  "rule_language_version": "0.1",
+  "input_kinds": {
+    "tensor": "Any named graph value with tensor shape [N, ...].",
+    "column": "A tensor with shape [N].",
+    "matrix": "A tensor with shape [N, D] for some statically known D.",
+    "numeric_tensor": "A tensor with shape [N, ...] and numeric dtype (integer or floating-point).",
+    "floating_tensor": "A tensor with shape [N, ...] and floating-point dtype.",
+    "integer_tensor": "A tensor with shape [N, ...] and integer dtype (signed or unsigned).",
+    "boolean_tensor": "A tensor with shape [N, ...] and BOOL dtype.",
+    "string_tensor": "A tensor with shape [N, ...] and STRING dtype.",
+    "sparse_tensor": "A sparse tensor value with a declared dense shape [N, ...].",
+    "token_sequence": "A per-row token sequence value used by text operators.",
+    "label_set_sequence": "A per-row collection of zero or more labels."
+  },
+  "type_rules": {
+    "same_type(x)": "Return the same tensor dtype as input x.",
+    "same_type(xs)": "All tensors in xs must have the same dtype; output uses that dtype.",
+    "same_type(candidates)": "All candidate tensors must have the same dtype; output uses that dtype.",
+    "same_type_as_all_inputs": "All inputs must have the same dtype; output uses that dtype.",
+    "promote_to_float(x)": "Return FLOAT32 or FLOAT64 depending on x and operator policy.",
+    "promote_to_float(inputs)": "Return a float dtype appropriate for the numeric inputs.",
+    "same_type(attr:output_dtype)": "Return the dtype named by the output_dtype attribute.",
+    "floating_type(attr:output_dtype)": "Return the floating-point dtype named by the output_dtype attribute.",
+    "derived_from_expression(expr)": "Infer dtype from the embedded Expression and function registry.",
+    "derived_from_body": "Infer dtype from the structured body contract.",
+    "dense_value_type(x)": "Return the value dtype of sparse input x as the dtype of the dense output.",
+    "dense_to_sparse_value_type(x)": "Return the dtype of dense input x as the value dtype of the sparse output.",
+    "derived_from_knn_targets": "Infer dtype from the stored KNN target tensor and task.",
+    "int64": "Return INT64.",
+    "string": "Return STRING."
+  },
+  "shape_rules": {
+    "same_shape(x)": "Return the same shape as x.",
+    "same_shape_as_all_inputs": "All inputs must have the same shape; output uses that shape.",
+    "concat_last_dim(inputs)": "Concatenate inputs along the last dimension.",
+    "replace_last_dim(x,K)": "Keep all dimensions except replace the last dimension with K.",
+    "column": "Return shape [N].",
+    "matrix(n_rows=N,n_cols=K)": "Return shape [N, K].",
+    "matrix(n_rows=N,n_cols=len(indices))": "Return shape [N, len(indices)].",
+    "split_last_dim(x,sections)": "Split x along the last dimension into outputs whose last-dimension sizes are given by sections.",
+    "reshape_preserve_rows(x,new_shape)": "Return shape [N, ...new_shape], preserving the leading row dimension.",
+    "same_shape_as_candidates": "All candidate inputs must have the same shape; output uses that shape.",
+    "same_dense_shape(x)": "Return the declared dense shape of sparse input x.",
+    "sparse_shape_from_dense(x)": "Return a sparse tensor whose declared dense shape matches the shape of dense input x.",
+    "token_sequence": "Return one token sequence per input row.",
+    "token_sequence_variable": "Return one token sequence per input row; token count per row may vary independently of the input.",
+    "derived_from_body": "Infer shape from the structured body contract.",
+    "derived_from_input_and_operator": "Infer output shape from input shapes and the operator contract."
+  },
+  "measure_level_rules": {
+    "same_measure_level(x)": "Output measure level equals x.",
+    "CONTINUOUS": "Output measure level is CONTINUOUS.",
+    "FLAG": "Output measure level is FLAG.",
+    "NOMINAL": "Output measure level is NOMINAL.",
+    "ORDINAL": "Output measure level is ORDINAL.",
+    "TEXT": "Output measure level is TEXT.",
+    "derived_from_input_and_operator": "Derived from input semantics and operator contract.",
+    "derived_from_expression(expr)": "Infer measure level from the embedded Expression and function registry.",
+    "derived_from_body": "Infer measure level from the structured body contract.",
+    "derived_from_knn_targets": "For classification use NOMINAL; for regression use CONTINUOUS."
+  },
+  "domain_rules": {
+    "binary_0_1": "Output domain is the discrete set {0,1}.",
+    "probability_0_1": "Output domain is continuous interval [0,1].",
+    "copied_from_input": "Output domain matches the relevant input domain."
+  },
+  "role_rules": {
+    "PREDICTION": "Output role is PREDICTION.",
+    "PROBABILITY": "Output role is PROBABILITY.",
+    "SCORE": "Output role is SCORE."
+  },
+  "namespaces": []
+}

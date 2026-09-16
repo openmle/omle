@@ -1,0 +1,57 @@
+{
+  "registry_type": "functions",
+  "registry_version": "0.1",
+  "description": "Shared metadata and rule tables for OMLE function registries v0.1.",
+  "parameter_conventions": {
+    "arguments": "Positional inputs in declaration order.",
+    "optional_parameters": "Optional named keyword arguments that follow the positional list and are passed by name, not by position.",
+    "variadic": "Only positional arguments may be variadic, and only the final positional argument may be variadic."
+  },
+  "input_kinds": {
+    "any": "Any scalar-like [N] column type.",
+    "numeric": "Any integer or floating-point type.",
+    "integer": "Any signed or unsigned integer type.",
+    "floating": "Any floating-point type.",
+    "boolean": "Boolean type.",
+    "string": "String type.",
+    "comparable": "Types that support equality and ordering where applicable.",
+    "date": "Date type.",
+    "time": "Time type.",
+    "timestamp": "Timestamp type."
+  },
+  "type_rules": {
+    "same_as(arg)": "Return the same type as arg.",
+    "numeric_promotion(a,b)": "Promote numeric operands to a common numeric type.",
+    "numeric_promotion(args)": "Promote all referenced numeric operands to a common numeric type.",
+    "float_division(x,y)": "Return a floating-point type for division, promoting integer operands to float as needed.",
+    "float_if_numeric(x)": "Return a floating-point type suitable for the numeric input domain of x.",
+    "float_if_numeric(args)": "Return a floating-point type suitable for the numeric input domain shared by the referenced numeric arguments.",
+    "common_supertype(args)": "Return the common compatible type across args.",
+    "same_as_non_null(args)": "Return the common type of the first non-null-compatible arguments.",
+    "same_as_non_null_result_values(args)": "Return the common type of non-null mapped/result-side values only, excluding key-side match inputs.",
+    "boolean": "Return BOOL.",
+    "string": "Return STRING.",
+    "int64": "Return INT64.",
+    "target_type": "Return the type named by the cast target_type argument."
+  },
+  "measure_level_rules": {
+    "same_as(arg)": "Return the same measure level as arg.",
+    "same_as_non_null(args)": "Return the measure level of the first non-null-compatible arguments.",
+    "same_as_non_null_result_values(args)": "Return the measure level of non-null mapped/result-side values only, excluding key-side match inputs.",
+    "common_branch_measure_level(args)": "Return a compatible measure level derived from conditional/result branches.",
+    "continuous_if_numeric(args)": "Return CONTINUOUS for numeric arithmetic results.",
+    "flag": "Return FLAG.",
+    "nominal": "Return NOMINAL.",
+    "ordinal": "Return ORDINAL.",
+    "continuous": "Return CONTINUOUS."
+  },
+  "null_rules": {
+    "strict": "If any argument is null, the result is null.",
+    "coalesce": "Return the first non-null argument; null if all are null.",
+    "if_condition": "If condition is null, the result is null. Otherwise evaluate only the selected branch.",
+    "is_missing": "Return true for null inputs, false otherwise.",
+    "is_not_missing": "Return false for null inputs, true otherwise.",
+    "three_valued": "Boolean logic uses three-valued semantics. For AND and OR, null may be resolved when the other operand determines the result. Otherwise the result is null."
+  },
+  "namespaces": []
+}

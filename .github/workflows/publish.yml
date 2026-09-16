@@ -1,0 +1,226 @@
+name: Publish
+
+# Publishes omle to PyPI.
+#
+# Two ways to run:
+#   1. Push a version tag  →  builds, verifies, publishes to PyPI.
+#        git tag v0.1.0 && git push origin v0.1.0
+#   2. Run manually        →  builds, verifies, publishes to TestPyPI
+#        (Actions → Publish → Run workflow)
+#
+# Authentication uses PyPI Trusted Publishing (OIDC) — no API tokens or
+# secrets. Before the first run, register this workflow as a trusted publisher:
+#   PyPI:     https://pypi.org/manage/account/publishing/
+#   TestPyPI: https://test.pypi.org/manage/account/publishing/
+# with owner "openmle", repository "omle", workflow "publish.yml", and
+# environment "pypi" / "testpypi" respectively.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          # setuptools-scm derives the version from git tags — a shallow
+          # checkout yields 0.0.x or a dev version with a local segment.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: pip install build twine
+
+      - name: Build sdist and wheel
+        run: |
+          rm -rf build dist
+          python -m build
+
+      - name: Check metadata
+        run: twine check dist/*
+
+      - name: Reject versions PyPI will not accept
+        run: |
+          python - <<'PY'
+          import glob
+          import os
+          import sys
+
+          wheels = glob.glob("dist/*.whl")
+          if len(wheels) != 1:
+              sys.exit(f"::error::Expected exactly one wheel in dist/, found {wheels}")
+
+          # Wheel filenames are {name}-{version}-{python}-{abi}-{platform}.whl;
+          # parse the basename so a '-' in the workspace path cannot shift fields.
+          version = os.path.basename(wheels[0]).split("-")[1]
+          print(f"Built version: {version}")
+
+          if "+" in version:
+              print(
+                  f"::error::Version '{version}' carries a local segment, which PyPI "
+                  "rejects. Publish from a checkout of a version tag (e.g. git tag v0.1.0)."
+              )
+              sys.exit(1)
+          PY
+
+      - name: Verify the wheel bundles the registries
+        run: |
+          for f in omle/registry/operators.json omle/registry/functions.json; do
+            if ! unzip -l dist/*.whl | grep -q "$f"; then
+              echo "::error::$f is missing from the wheel — the registry merge in setup.py did not run."
+              exit 1
+            fi
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  verify:
+    name: Verify install (${{ matrix.python-version }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the built wheel
+        run: pip install pytest dist/*.whl
+
+      - name: Run the test suite against the installed wheel
+        # -o pythonpath= drops the src/ entry from pyproject.toml so the tests
+        # exercise the wheel that is about to be published, not the checkout.
+        run: |
+          python -c "import omle; print('testing:', omle.__file__)"
+          pytest tests/ -o pythonpath=
+
+      - name: Smoke-test the installed package
+        # Run from a scratch directory so the repo checkout cannot satisfy
+        # imports or the registry source fallback.
+        run: |
+          mkdir -p /tmp/smoke && cd /tmp/smoke
+          python - <<'PY'
+          import tempfile
+
+          import omle
+          from omle.registry import get_operator_registry, get_function_registry
+
+          print("version:", omle.__version__)
+
+          ops = get_operator_registry()
+          fns = get_function_registry()
+          print("registries loaded from the installed package")
+
+          model = omle.OMLEModel(metadata=omle.ModelMetadata(name="smoke"))
+          path = tempfile.mktemp(suffix=".omle")
+          omle.save(model, path)
+          assert omle.load(path).metadata.name == "smoke"
+          print("protobuf round-trip ok")
+          PY
+          omle --version
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    if: github.event_name == 'workflow_dispatch'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/omle
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          # TestPyPI often already holds a build of this version from an
+          # earlier dry run; don't fail the workflow over it.
+          skip-existing: true
+
+  publish-pypi:
+    name: Publish to PyPI
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/omle
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create the GitHub release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # No build artifacts are attached. PyPI is the distribution channel
+          # for this package and already serves the wheel and sdist, with
+          # checksums, for every version; duplicating them here would only add
+          # a second copy to keep in sync. GitHub still serves the auto-
+          # generated source archives for the tag. This job exists so that a
+          # tag pushed from the command line still gets a release with notes.
+          #
+          # The release may already exist: creating one through the GitHub web
+          # UI creates the tag as well, and that tag push is what triggers this
+          # workflow, so `gh release create` would fail with "a release with the
+          # same tag name already exists".
+          if gh release view "${GITHUB_REF_NAME}" \
+               --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists; nothing to do."
+            exit 0
+          fi
+
+          # PEP 440 pre-release tags (v1.2.3rc1, a1, b1) must not be published
+          # as the latest stable release.
+          prerelease=""
+          if printf '%s' "${GITHUB_REF_NAME}" | grep -qE '(a|b|rc)[0-9]+$'; then
+            prerelease="--prerelease"
+          fi
+
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes ${prerelease}

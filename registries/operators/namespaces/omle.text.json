@@ -1,0 +1,667 @@
+{
+  "name": "omle.text",
+  "version": "0.1",
+  "description": "Text preprocessing, tokenization, vectorization, and embedding operators for OMLE v0.1.",
+  "operators": [
+    {
+      "name": "Lowercase",
+      "since": "0.1",
+      "category": "normalization",
+      "kind": "generic",
+      "summary": "Convert text to lowercase.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "string_tensor"
+          ],
+          "shape_constraints": [
+            "rank = 1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "string",
+          "shape_rule": "same_shape(x)",
+          "measure_level_rule": "TEXT"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: the lowercase=True preprocessing step inside sklearn.feature_extraction.text.CountVectorizer/TfidfVectorizer/HashingVectorizer.",
+        "Coverage notes: exact. No converter emits this operator standalone today \u2014 sklearn folds case-folding into its vectorizers, so it is currently produced only as part of lowering a vectorizer's preprocessing chain.",
+        "Lowering notes: emit this before Tokenizer when the source vectorizer had lowercase enabled, rather than baking case-folding into the vocabulary."
+      ]
+    },
+    {
+      "name": "Trim",
+      "since": "0.1",
+      "category": "normalization",
+      "kind": "generic",
+      "summary": "Remove leading and trailing whitespace.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "string_tensor"
+          ],
+          "shape_constraints": [
+            "rank = 1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "string",
+          "shape_rule": "same_shape(x)",
+          "measure_level_rule": "TEXT"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: leading and trailing whitespace stripping in text preprocessing chains.",
+        "Coverage notes: exact. No converter emits this operator today; it exists so a preprocessing chain can be represented explicitly rather than implied.",
+        "Lowering notes: use together with NormalizeWhitespace when the source pipeline normalized surrounding whitespace before tokenization."
+      ]
+    },
+    {
+      "name": "NormalizeWhitespace",
+      "since": "0.1",
+      "category": "normalization",
+      "kind": "generic",
+      "summary": "Collapse repeated whitespace to single spaces.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "string_tensor"
+          ],
+          "shape_constraints": [
+            "rank = 1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "string",
+          "shape_rule": "same_shape(x)",
+          "measure_level_rule": "TEXT"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: whitespace collapsing in text preprocessing chains, including the default whitespace splitting behaviour that precedes tokenization.",
+        "Coverage notes: exact. No converter emits this operator today; it exists so a preprocessing chain can be represented explicitly rather than implied.",
+        "Lowering notes: collapses runs of whitespace to a single space; pair with Trim to fully normalize surrounding whitespace before Tokenizer."
+      ]
+    },
+    {
+      "name": "StringReplace",
+      "since": "0.1",
+      "category": "normalization",
+      "kind": "generic",
+      "summary": "Replace string occurrences.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "string_tensor"
+          ],
+          "shape_constraints": [
+            "rank = 1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "string",
+          "shape_rule": "same_shape(x)",
+          "measure_level_rule": "TEXT"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "old",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "new",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "replace_all",
+          "type": "bool",
+          "required": false,
+          "default": true
+        }
+      ],
+      "validation_rules": [
+        "String matching and replacement operate on Unicode code points. Input strings are treated as UTF-8 encoded."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: literal substring replacement in text preprocessing chains.",
+        "Coverage notes: exact for literal replacement. No converter emits this operator today. Use RegexReplace when the source step used a pattern rather than a literal.",
+        "Lowering notes: literal replacement only \u2014 the pattern is not interpreted as a regular expression."
+      ]
+    },
+    {
+      "name": "RegexReplace",
+      "since": "0.1",
+      "category": "normalization",
+      "kind": "generic",
+      "summary": "Replace text matched by a regular expression.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "string_tensor"
+          ],
+          "shape_constraints": [
+            "rank = 1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "string",
+          "shape_rule": "same_shape(x)",
+          "measure_level_rule": "TEXT"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "pattern",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "replacement",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "pattern must be a valid RE2 syntax regular expression.",
+        "Pattern matching and replacement operate on Unicode code points. Input strings are treated as UTF-8 encoded.",
+        "Converters from scikit-learn or Spark must verify that source patterns are RE2-compatible and must reject or flag patterns that rely on unsupported constructs such as backreferences or lookarounds."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: regular-expression substitution in text preprocessing chains, including custom preprocessor callables in sklearn vectorizers.",
+        "Coverage notes: exact for the stored pattern. No converter emits this operator today, because sklearn preprocessor callables are arbitrary Python and cannot be extracted automatically.",
+        "Lowering notes: the pattern must be written in a portable regular-expression syntax; avoid engine-specific constructs, since consumers use their own regex implementations."
+      ]
+    },
+    {
+      "name": "Tokenizer",
+      "since": "0.1",
+      "category": "tokenization",
+      "kind": "generic",
+      "summary": "Split each input string into a token sequence using whitespace tokenization.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "string_tensor"
+          ],
+          "shape_constraints": [
+            "rank = 1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "string",
+          "shape_rule": "token_sequence_variable",
+          "measure_level_rule": "TEXT"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [
+        "Splits on any Unicode whitespace character as defined by Unicode property White_Space = yes.",
+        "Consecutive whitespace characters are treated as a single separator.",
+        "Leading and trailing whitespace produce no empty tokens."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: pyspark.ml.feature.Tokenizer.",
+        "Coverage notes: exact for simple whitespace tokenization. sklearn vectorizers tokenize with a regular expression rather than plain whitespace and therefore lower to RegexTokenizer.",
+        "Lowering notes: produces a per-row token sequence rather than a fixed-width tensor; downstream operators must accept token_sequence."
+      ]
+    },
+    {
+      "name": "RegexTokenizer",
+      "since": "0.1",
+      "category": "tokenization",
+      "kind": "generic",
+      "summary": "Split each input string into a token sequence using a regular expression.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "string_tensor"
+          ],
+          "shape_constraints": [
+            "rank = 1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "string",
+          "shape_rule": "token_sequence_variable",
+          "measure_level_rule": "TEXT"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "pattern",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "gaps",
+          "type": "bool",
+          "required": false,
+          "default": true,
+          "description": "If true, pattern matches separators between tokens (split on match). If false, pattern matches tokens themselves (keep matches). Mirrors Spark RegexTokenizer.gaps semantics."
+        },
+        {
+          "name": "min_token_length",
+          "type": "int",
+          "required": false,
+          "default": 1
+        }
+      ],
+      "validation_rules": [
+        "pattern must be a valid RE2 syntax regular expression.",
+        "If gaps = false, tokens are the non-overlapping regex matches of pattern.",
+        "If gaps = true, tokens are the non-empty spans between regex matches of pattern.",
+        "min_token_length must be >= 1.",
+        "Converters from scikit-learn or Spark must verify that source patterns are RE2-compatible and must reject or flag patterns that rely on unsupported constructs such as backreferences or lookarounds."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: pyspark.ml.feature.RegexTokenizer; the token_pattern tokenization step inside sklearn.feature_extraction.text.CountVectorizer/TfidfVectorizer/HashingVectorizer.",
+        "Coverage notes: exact for the stored pattern. sklearn's default token_pattern of (?u)\\b\\w\\w+\\b is carried across verbatim rather than approximated by whitespace splitting.",
+        "Lowering notes: produces a per-row token sequence rather than a fixed-width tensor; downstream operators must accept token_sequence."
+      ]
+    },
+    {
+      "name": "NGram",
+      "since": "0.1",
+      "category": "sequence",
+      "kind": "generic",
+      "summary": "Produce token n-grams for sizes in the inclusive range [n_min, n_max].",
+      "description": "Output token count per row is the sum over n in [n_min, n_max] of max(0, len(row) - n + 1). Tokens within each n-gram are joined with a single space character U+0020.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "token_sequence"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "string",
+          "shape_rule": "token_sequence_variable",
+          "measure_level_rule": "TEXT"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "n_min",
+          "type": "int",
+          "required": false,
+          "default": 1
+        },
+        {
+          "name": "n_max",
+          "type": "int",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "n_min must be >= 1.",
+        "n_max must be >= n_min.",
+        "Tokens within each n-gram are joined with a single space character U+0020."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: pyspark.ml.feature.NGram; the ngram_range expansion inside sklearn.feature_extraction.text.CountVectorizer/TfidfVectorizer/HashingVectorizer.",
+        "Coverage notes: exact. A single node covers a range of n, so scikit-learn and Spark style n-gram ranges do not require multiple NGram nodes plus Concat.",
+        "Lowering notes: use n_min = n_max for single-n behaviour, matching Spark's NGram; use n_min < n_max for a sklearn ngram_range."
+      ]
+    },
+    {
+      "name": "StopWordsRemover",
+      "since": "0.1",
+      "category": "sequence",
+      "kind": "generic",
+      "summary": "Remove stop words from token sequences.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "token_sequence"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "string",
+          "shape_rule": "token_sequence_variable",
+          "measure_level_rule": "TEXT"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "stop_words",
+          "type": "tensor_ref",
+          "required": true
+        },
+        {
+          "name": "case_sensitive",
+          "type": "bool",
+          "required": false,
+          "default": false
+        }
+      ],
+      "validation_rules": [
+        "stop_words must reference a STRING tensor of shape [K]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: pyspark.ml.feature.StopWordsRemover; the stop_words filtering step inside sklearn.feature_extraction.text.CountVectorizer/TfidfVectorizer.",
+        "Coverage notes: exact for an explicit stop-word list. sklearn's stop_words='english' resolves to its built-in list, which converters must materialize into an explicit list rather than referencing by name.",
+        "Lowering notes: apply after tokenization and before vectorization, matching the source pipeline's order."
+      ]
+    },
+    {
+      "name": "CountVectorizer",
+      "since": "0.1",
+      "category": "vectorization",
+      "kind": "generic",
+      "summary": "Convert token sequences to sparse count vectors.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "token_sequence"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(attr:output_dtype)",
+          "shape_rule": "matrix(n_rows=N,n_cols=K)",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "vocabulary",
+          "type": "tensor_ref",
+          "required": true
+        },
+        {
+          "name": "binary",
+          "type": "bool",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": false,
+          "default": "FLOAT32",
+          "enum_values": [
+            "FLOAT32",
+            "FLOAT64",
+            "INT32",
+            "INT64"
+          ]
+        }
+      ],
+      "validation_rules": [
+        "Tokens not present in vocabulary are silently ignored.",
+        "vocabulary must reference a STRING tensor of shape [K].",
+        "If binary = false, y[i, vocab_index(token)] is incremented by 1 for each occurrence of token in row i.",
+        "If binary = true, y[i, vocab_index(token)] is set to 1 regardless of occurrence count.",
+        "Output y is typically represented as SparseTensor in runtime implementations when sparse materialization is available."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.feature_extraction.text.CountVectorizer; pyspark.ml.feature.CountVectorizerModel.",
+        "Coverage notes: exact for the fitted vocabulary and term counts. sklearn's TfidfVectorizer lowers to CountVectorizer followed by TfIdfTransformer, since it is the composition of the two.",
+        "Lowering notes: store the fitted vocabulary in its fitted index order; the column order of the output depends on it."
+      ]
+    },
+    {
+      "name": "HashingVectorizer",
+      "since": "0.1",
+      "category": "vectorization",
+      "kind": "generic",
+      "summary": "Convert token sequences to sparse hashed feature vectors.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "token_sequence"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(attr:output_dtype)",
+          "shape_rule": "matrix(n_rows=N,n_cols=K)",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "num_features",
+          "type": "int",
+          "required": true
+        },
+        {
+          "name": "binary",
+          "type": "bool",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "alternate_sign",
+          "type": "bool",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "hash_function",
+          "type": "string",
+          "required": false,
+          "default": "murmurhash2",
+          "enum_values": [
+            "murmurhash2",
+            "murmurhash3"
+          ]
+        },
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": false,
+          "default": "FLOAT32",
+          "enum_values": [
+            "FLOAT32",
+            "FLOAT64",
+            "INT32",
+            "INT64"
+          ]
+        }
+      ],
+      "validation_rules": [
+        "K = num_features.",
+        "num_features must be >= 1.",
+        "Tokens are encoded as UTF-8 bytes before hashing.",
+        "If hash_function = 'murmurhash2', index = murmurhash2_unsigned(token_bytes) % num_features.",
+        "If hash_function = 'murmurhash3', index = murmurhash3_x86_32(token_bytes, seed=0) % num_features.",
+        "If alternate_sign = false, each token contributes a positive unit or count to its hashed index.",
+        "If alternate_sign = true and hash_function = 'murmurhash2', let h = murmurhash2_unsigned(token_bytes). The feature sign is +1 if ((h >> 31) & 1) = 0, else -1.",
+        "If alternate_sign = true and hash_function = 'murmurhash3', let h = murmurhash3_x86_32(token_bytes, seed=0). The feature sign is +1 if ((h >> 31) & 1) = 0, else -1.",
+        "Converters must record which hash_function the source framework used."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.feature_extraction.text.HashingVectorizer; pyspark.ml.feature.HashingTF.",
+        "Coverage notes: exact given a matching hash function. It is stateless \u2014 there is no fitted vocabulary \u2014 so the hash function and feature count fully determine the output.",
+        "Lowering notes: record the hash function and n_features exactly; a consumer using a different hash produces silently wrong columns rather than an error."
+      ]
+    },
+    {
+      "name": "TfIdfTransformer",
+      "since": "0.1",
+      "category": "weighting",
+      "kind": "generic",
+      "summary": "Apply inverse-document-frequency weighting to count vectors.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "numeric_tensor",
+            "sparse_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(x)",
+          "shape_rule": "same_shape(x)",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "idf",
+          "type": "tensor_ref",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "idf must reference a floating-point tensor of shape [K] where K matches the trailing feature dimension of x.",
+        "Output is computed elementwise: y[i, j] = x[i, j] * idf[j].",
+        "Output dtype follows promote_to_float(x) regardless of the stored dtype of idf."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.feature_extraction.text.TfidfTransformer and the IDF half of TfidfVectorizer; pyspark.ml.feature.IDFModel.",
+        "Coverage notes: exact for precomputed IDF weights. The two frameworks use different smoothing \u2014 sklearn's default smooth IDF is idf[i] = log((1 + n) / (1 + df[i])) + 1, while Spark's IDFModel uses idf[i] = log((N + 1) / (df[i] + 1)) \u2014 so the idf tensor must match the source framework's fitted formula.",
+        "Lowering notes: extract the fitted idf array directly rather than recomputing it from document frequencies.",
+        "Lowering notes: TfIdfTransformer does not normalize. Apply an explicit omle.feature.Normalizer node after it when the source used L1 or L2 normalization, as sklearn's TfidfVectorizer does by default."
+      ]
+    },
+    {
+      "name": "Word2Vec",
+      "since": "0.1",
+      "category": "embedding",
+      "kind": "generic",
+      "summary": "Convert token sequences to dense document embeddings using a learned word embedding table.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "token_sequence"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "floating_type(attr:output_dtype)",
+          "shape_rule": "matrix(n_rows=N,n_cols=K)",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "vocabulary",
+          "type": "tensor_ref",
+          "required": true
+        },
+        {
+          "name": "embeddings",
+          "type": "tensor_ref",
+          "required": true
+        },
+        {
+          "name": "pooling",
+          "type": "string",
+          "required": false,
+          "default": "mean",
+          "enum_values": [
+            "mean",
+            "sum"
+          ]
+        },
+        {
+          "name": "unknown_token_policy",
+          "type": "string",
+          "required": false,
+          "default": "ignore",
+          "enum_values": [
+            "ignore",
+            "zero"
+          ]
+        },
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": false,
+          "default": "FLOAT32",
+          "enum_values": [
+            "FLOAT32",
+            "FLOAT64"
+          ]
+        }
+      ],
+      "validation_rules": [
+        "vocabulary must reference a STRING tensor of shape [V].",
+        "embeddings must reference a floating-point tensor of shape [V, K].",
+        "The leading dimension of embeddings must equal len(vocabulary).",
+        "K is the embedding dimension derived from embeddings.",
+        "unknown_token_policy = 'ignore': unknown tokens contribute nothing to pooling; for mean pooling they are excluded from the denominator.",
+        "unknown_token_policy = 'zero': unknown tokens contribute a zero vector; for mean pooling they are included in the denominator.",
+        "If pooling = 'sum' and no tokens in a row are matched, output row is the zero vector.",
+        "If pooling = 'mean' and no tokens in a row are matched, whether because the row is empty or all tokens are unknown, output row is the zero vector."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: pyspark.ml.feature.Word2VecModel.",
+        "Coverage notes: exact for the fitted vocabulary and embedding matrix. Inference averages the embeddings of the tokens in each row, matching Spark's transform semantics; training is out of scope.",
+        "Lowering notes: preserve the learned token-to-row alignment between vocabulary and embeddings \u2014 the vocabulary order indexes the embedding matrix."
+      ]
+    }
+  ]
+}

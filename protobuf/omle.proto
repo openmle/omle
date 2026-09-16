@@ -1,0 +1,3289 @@
+syntax = "proto3";
+
+package omle;
+
+// ============================================================
+// OMLE: Open Machine Learning Exchange
+// ============================================================
+//
+// OMLE is an open exchange format for inference with classical machine
+// learning models and related preprocessing and postprocessing pipelines.
+//
+// The format is designed for exchange, conversion, validation, and
+// deployment-oriented inference. It is not tied to any specific runtime,
+// server, or execution engine. A producer may generate OMLE from another
+// ecosystem, and a consumer may interpret, optimize, compile, or execute
+// the model in its own environment.
+//
+// OMLE v0.1 focuses on models and pipelines from the following open-source
+// machine learning ecosystems:
+//
+// - Ensemble trees: XGBoost, LightGBM, and CatBoost
+// - scikit-learn
+// - Spark ML
+//
+// OMLE aims to preserve model semantics at a level that is practical for
+// interoperability. Instead of forcing every model into a low-level
+// operator graph, OMLE supports a hybrid representation:
+//
+// - Logical schema objects for features and targets
+// - Graph nodes for transformations and generic computation
+// - Structured model bodies for important classical ML families
+//
+// This design allows OMLE to preserve the semantics of common classical
+// model families such as linear models, tree ensembles, Naive Bayes models,
+// clustering models, support vector machines, classical feed-forward neural
+// networks, and anomaly detection models, while still supporting generic
+// graph-style computation where needed.
+//
+// OMLE also supports both:
+//
+// - Field-oriented model semantics, where named logical features and targets
+//   describe model meaning
+// - Tensor-oriented runtime interfaces, where inputs and outputs are
+//   exchanged as tensors with explicit element type and shape
+//
+// The logical schema and the runtime interface are related but distinct:
+// the logical schema describes what the model means, while the runtime
+// interface describes how external callers provide inputs and receive
+// outputs.
+//
+// Design goals:
+// - Provide a compact, modern, binary schema for model exchange
+// - Represent inference semantics clearly and efficiently
+// - Preserve high-level model semantics where possible
+// - Enable conversion from and to major ML ecosystems
+// - Support both single-instance and batch-oriented inference
+//
+// OMLE distinguishes between:
+//
+// - functions: elementwise primitives used inside expressions
+// - operators: graph-level computations represented as nodes
+//
+// Versioning guidance:
+// - This package namespace identifies the major schema version
+// - Compatible evolution should preserve existing field numbers
+// - New fields should be added in a backward-compatible way whenever possible
+// - Removing or reusing field numbers should be avoided once published
+
+// ============================================================
+// OMLE v0.1 restrictions
+// ============================================================
+//
+// OMLE v0.1 graphs are static DAGs. Every declared node produces all of
+// its declared outputs on every inference call. Dynamic graph structure,
+// data-dependent control flow, and conditional mid-graph execution are
+// reserved for a future version.
+//
+// The following features are deferred beyond v0.1:
+// - Ragged or dynamically sized tensors
+// - Data-dependent control flow and conditional graph execution
+// - Scoped reuse of composites by reference
+// - User-defined post-transforms (PostTransform is a closed enum; an
+//   arbitrary transform can still be expressed as a Derive node placed
+//   after the model node)
+
+// ============================================================
+// Top-level model
+// ============================================================
+
+// Root OMLE model document.
+//
+// A complete OMLE artifact contains:
+//
+// - Descriptive metadata
+// - Imported operator and function namespaces
+// - The external inference interface (inputs/outputs)
+// - Optional logical feature/target schema
+// - Graph nodes for transforms and model execution
+// - Optional verification, warm-up, and sample input sections
+// - Reusable tensor entries referenced by graph nodes and auxiliary sections
+// - Optional user-defined functions
+message OMLEModel {
+  // General model metadata such as name, producer, and source frameworks.
+  ModelMetadata metadata = 1;
+
+  // Imported operator namespaces used by this model.
+  //
+  // These imports declare which operator vocabularies the model relies on
+  // for Node.domain / Node.op resolution.
+  //
+  // Example imports for a typical converted pipeline:
+  //
+  //   operator_imports: [
+  //     { namespace: "omle.core",    version: "0.1" }
+  //     { namespace: "omle.feature", version: "0.1" }
+  //   ]
+  repeated NamespaceImport operator_imports = 2;
+
+  // Imported function namespaces used by this model.
+  //
+  // These imports declare which function vocabularies the model relies on
+  // for Expression.Apply and other function references.
+  //
+  // User-defined functions declared in OMLEModel.functions do not need
+  // to appear here.
+  //
+  // Example:
+  //
+  //   function_imports: [
+  //     { namespace: "omle.functions", version: "0.1" }
+  //   ]
+  repeated NamespaceImport function_imports = 3;
+
+  // External inputs of the model inference interface.
+  //
+  // These declare the external input slots accepted by the model.
+  // If ModelSchema is present, downstream graph computation observes the
+  // schema-preprocessed versions of these inputs rather than raw values.
+  repeated InputSpec inputs = 4;
+
+  // External outputs of the model inference interface.
+  //
+  // OutputSpec.name must resolve to a named value produced within the model.
+  // Specifically, it must match either an InputSpec.name or a NodeOutput.name
+  // visible in the enclosing graph namespace.
+  //
+  // Validators must reject the model if an OutputSpec.name does not resolve
+  // uniquely to such a value.
+  repeated OutputSpec outputs = 5;
+
+  // Logical feature/target schema used by the model.
+  //
+  // ModelSchema is not only descriptive metadata. When present, it defines
+  // the initial preprocessing stage of the model. External inputs are
+  // interpreted through ModelSchema before they are consumed by downstream
+  // nodes.
+  //
+  // Feature bindings defined by ModelSchema determine how input values are
+  // read and preprocessed, including data casting when the external input
+  // type and internal feature type do not match, and handling for missing,
+  // invalid, and outlier values. Downstream references observe these
+  // processed values, not the original raw input values.
+  ModelSchema model_schema = 6;
+
+  // Graph nodes that implement transformations and model execution.
+  //
+  // A model may use generic nodes, structured model bodies, or both.
+  repeated Node nodes = 7;
+
+  // Optional verification cases used to confirm model correctness.
+  //
+  // Verification cases provide model inputs together with expected outputs
+  // so converters, validators, and runtimes can confirm semantic
+  // correctness and numerical consistency.
+  ModelVerification verification = 8;
+
+  // Optional warm-up requests for runtime initialization.
+  //
+  // Warm-up requests provide representative input cases that runtimes may
+  // execute before serving real traffic in order to initialize execution
+  // paths, caches, memory allocation, or JIT compilation.
+  RuntimeWarmup warmup = 9;
+
+  // Optional sample inputs for end-user reference.
+  //
+  // Sample inputs are informational examples showing what kinds of external
+  // inputs should be provided by end users or client applications.
+  SampleInputSet sample_inputs = 10;
+
+  // Reusable tensor entries referenced by graph nodes and auxiliary sections.
+  //
+  // These entries form the shared storage pool for tensors referenced by
+  // generic graph nodes, structured model bodies, verification cases,
+  // warm-up requests, sample input sets, and other future sections.
+  repeated TensorEntry tensor_entries = 20;
+
+  // Optional user-defined elementwise functions.
+  //
+  // Built-in standard functions do not need to be listed here.
+  repeated DefineFunction functions = 30;
+}
+
+// ============================================================
+// Metadata
+// ============================================================
+
+// One framework or library involved in the original source pipeline.
+//
+// This is intentionally broader than just the final estimator framework.
+// A converted model may originate from multiple frameworks, for example:
+//
+// - scikit-learn preprocessing + xgboost estimator
+// - pandas preprocessing + scikit-learn estimator
+// - spark ml pipeline + custom estimator
+message SourceFramework {
+  // Framework or library name.
+  //
+  // Examples:
+  // - "scikit-learn"
+  // - "xgboost"
+  // - "lightgbm"
+  // - "catboost"
+  // - "spark ml"
+  // - "pandas"
+  string name = 1;
+
+  // Framework or library version.
+  string version = 2;
+
+  // Optional role of this framework in the source pipeline.
+  //
+  // Examples:
+  // - "preprocessing"
+  // - "estimator"
+  // - "postprocessing"
+  // - "container"
+  //
+  // This field is informational and intended to preserve provenance.
+  string role = 3;
+}
+
+// Descriptive metadata for the model artifact.
+//
+// These fields are informational and do not affect inference semantics
+// unless a consumer explicitly chooses to interpret them.
+message ModelMetadata {
+  // Version of the OMLE format used by this model document.
+  //
+  // format_version is a semantic version string identifying the OMLE
+  // schema version targeted by the model document, in MAJOR.MINOR.PATCH
+  // form.
+  //
+  // Consumers must reject models whose MAJOR version they do not support.
+  // Within a supported MAJOR version, a consumer may accept models with
+  // newer MINOR or PATCH versions only if it can safely ignore unknown
+  // fields and still preserve required semantics; otherwise it must reject
+  // the model.
+  //
+  // PATCH changes should be backward-compatible clarifications or fixes,
+  // while MINOR may add new optional fields, messages, enum values,
+  // operators, or functions without breaking existing valid models.
+  //
+  // The format is currently pre-1.0; MINOR bumps may still include breaking
+  // changes until v1 is released.
+  //
+  // Example: "0.1.0"
+  string format_version = 1;
+
+  // Human-readable model name.
+  string name = 2;
+
+  // Version of the model artifact itself.
+  string version = 3;
+
+  // Human-readable creation timestamp of the model artifact.
+  //
+  // This field is intended for descriptive metadata and display.
+  // Producers are encouraged to use an ISO 8601 string such as:
+  // - "2026-05-01T10:30:00Z"
+  // - "2026-05-01T10:30:00-07:00"
+  string timestamp = 4;
+
+  // Name of the producing tool, library, or organization.
+  string producer = 5;
+
+  // Version of the producing tool or library.
+  string producer_version = 6;
+
+  // Frameworks or libraries involved in the original source pipeline.
+  //
+  // This supports mixed pipelines that span multiple ecosystems, such as
+  // scikit-learn preprocessing combined with xgboost estimation.
+  repeated SourceFramework source_frameworks = 7;
+
+  // Free-form documentation string for the model.
+  string doc_string = 8;
+
+  // Copyright notice for the model artifact.
+  //
+  // This field is informational and intended for provenance, packaging,
+  // display, and legal notice purposes. It does not affect inference
+  // semantics.
+  //
+  // Examples:
+  // - "Copyright (c) 2026 OMLE contributors"
+  // - "Copyright (c) 2026 Example Corp. All rights reserved."
+  string copyright = 9;
+
+  // Extra metadata entries not covered by dedicated fields.
+  map<string, string> attributes = 20;
+}
+
+// Imported namespace and version.
+message NamespaceImport {
+  // Namespace identifier.
+  //
+  // Examples:
+  // - "omle.core": Core graph operators and shared execution primitives
+  // - "omle.feature": Feature engineering and preprocessing operators
+  // - "omle.text": Text processing and text feature extraction operators
+  // - "omle.ml": Standard machine learning model operators, including
+  //   both structured and generic operators
+  // - "omle.functions": Standard elementwise expression functions
+  // - "vendor.example": Vendor-defined custom extensions
+  //
+  // Namespaces beginning with "omle." are reserved for standard OMLE
+  // definitions and must not be redefined by producers.
+  //
+  // Custom extensions should use non-standard namespaces such as
+  // "vendor.example".
+  string namespace = 1;
+
+  // Version of the imported namespace.
+  string version = 2;
+}
+
+// ============================================================
+// Shared scalar/value types
+// ============================================================
+
+// Primitive scalar element type used in tensors and scalar declarations.
+//
+// This enum describes the semantic scalar types used by OMLE type
+// declarations. For tensor payload storage, producers may use raw_data
+// or one of the typed convenience branches on Tensor and CSRMatrix,
+// as appropriate.
+enum DataType {
+  // Unspecified data type.
+  DATA_TYPE_UNSPECIFIED = 0;
+
+  // Boolean scalar.
+  BOOL = 1;
+
+  // Signed 8-bit integer.
+  INT8 = 2;
+
+  // Signed 16-bit integer.
+  INT16 = 3;
+
+  // Signed 32-bit integer.
+  INT32 = 4;
+
+  // Signed 64-bit integer.
+  INT64 = 5;
+
+  // Unsigned 8-bit integer.
+  UINT8 = 6;
+
+  // Unsigned 16-bit integer.
+  UINT16 = 7;
+
+  // Unsigned 32-bit integer.
+  UINT32 = 8;
+
+  // Unsigned 64-bit integer.
+  UINT64 = 9;
+
+  // IEEE float16.
+  FLOAT16 = 10;
+
+  // IEEE float32.
+  FLOAT32 = 11;
+
+  // IEEE float64.
+  FLOAT64 = 12;
+
+  // UTF-8 string.
+  STRING = 13;
+
+  // Arbitrary byte sequence.
+  BYTES = 14;
+
+  // Days since Unix epoch (1970-01-01).
+  //
+  // Stored in tensor payloads using integer encodings such as int32_data,
+  // int64_data, or raw_data, depending on producer choice.
+  DATE = 15;
+
+  // Seconds since midnight in the range [0, 86400).
+  //
+  // Stored in tensor payloads using integer or floating-point encodings.
+  // Producers may use fractional values to represent sub-second precision.
+  TIME = 16;
+
+  // Milliseconds since Unix epoch.
+  //
+  // Stored in tensor payloads using int64_data or raw_data.
+  TIMESTAMP = 17;
+}
+
+// Semantic measurement level of a field, target, or output.
+//
+// This captures the statistical or semantic interpretation of values,
+// which may differ from their physical storage type.
+enum MeasureLevel {
+  // Unspecified measure level.
+  MEASURE_LEVEL_UNSPECIFIED = 0;
+
+  // Continuous numeric quantity.
+  CONTINUOUS = 1;
+
+  // Unordered categorical value.
+  NOMINAL = 2;
+
+  // Ordered categorical value.
+  ORDINAL = 3;
+
+  // Two-state indicator / flag value.
+  FLAG = 4;
+}
+
+// High-level task type of a model body.
+enum TaskType {
+  // Unspecified task type.
+  TASK_TYPE_UNSPECIFIED = 0;
+
+  // Regression.
+  REGRESSION = 1;
+
+  // Binary classification.
+  BINARY = 2;
+
+  // Multi-class classification.
+  MULTICLASS = 3;
+
+  // Clustering.
+  CLUSTERING = 4;
+
+  // Anomaly or novelty detection.
+  ANOMALY_DETECTION = 5;
+}
+
+// High-level semantic role of an output value.
+//
+// This enum is used both for external model outputs (OutputSpec)
+// and for internal node outputs (NodeOutput).
+enum OutputRole {
+  // Unspecified output role.
+  OUTPUT_ROLE_UNSPECIFIED = 0;
+
+  // Primary predicted value.
+  PREDICTION = 1;
+
+  // Probability output, usually classification probabilities.
+  //
+  // OMLE supports two common encodings for classification probabilities:
+  // - A multi-column output whose last dimension ranges over class labels
+  // - A single-column output representing the probability for one bound class
+  //
+  // If the output encodes probabilities for all classes together, the size
+  // of the last output dimension must equal the number of class labels
+  // declared by the bound target.
+  //
+  // If the output encodes the probability of a single class, OutputBinding
+  // may identify the bound class explicitly. If no class is bound, the
+  // output refers to the probability of the prediction.
+  PROBABILITY = 2;
+
+  // Generic score output.
+  SCORE = 3;
+
+  // Confidence associated with a prediction or score.
+  CONFIDENCE = 4;
+
+  // Standard error associated with a prediction or estimate.
+  STANDARD_ERROR = 5;
+
+  // Standard deviation associated with a prediction or predictive distribution.
+  STANDARD_DEVIATION = 6;
+
+  // Residual or error output.
+  RESIDUAL = 7;
+
+  // Arbitrary transformed or derived output value.
+  TRANSFORMED_VALUE = 8;
+
+  // Identifier of a selected entity, component, or structure element.
+  //
+  // Examples:
+  // - tree leaf id
+  // - cluster id
+  // - selected component id
+  ENTITY_ID = 9;
+
+  // Affinity, closeness, similarity, or membership-strength output.
+  AFFINITY = 10;
+
+  // Contribution or attribution output.
+  CONTRIBUTION = 11;
+
+  // Internal or intermediate output.
+  INTERMEDIATE = 12;
+}
+
+// Canonical scalar literal value.
+//
+// Scalar is a logical scalar literal container, not a full scalar storage
+// system. It is used where OMLE needs to embed individual scalar values
+// directly in the schema, such as:
+//
+// - Class labels
+// - Replacement values
+// - Domain values
+// - Output bindings
+// - Expression literals
+//
+// Numeric values may be widened here for schema simplicity.
+message Scalar {
+  // Canonical scalar literal.
+  //
+  // Numeric values may be widened when represented here:
+  // - Integer values are represented as int64
+  // - Floating-point values are represented as float32 or float64
+  //
+  // Consumers should coerce the literal to the target field or tensor type
+  // when applying the value in context.
+  oneof value {
+    // Boolean scalar value.
+    bool bool_value = 1;
+
+    // Integer scalar value.
+    int64 int_value = 2;
+
+    // Float32 scalar value.
+    float float_value = 3;
+
+    // Float64 scalar value.
+    double double_value = 4;
+
+    // String scalar value.
+    string string_value = 5;
+  }
+}
+
+// ============================================================
+// Runtime interface
+// ============================================================
+
+// Declares one external input of the model inference interface.
+//
+// Inputs declare externally supplied input slots. If ModelSchema is present,
+// graph nodes consume the schema-preprocessed values of these inputs.
+message InputSpec {
+  // Input name.
+  //
+  // Names should be unique within OMLEModel.inputs.
+  string name = 1;
+
+  // Input tensor type and shape contract.
+  TensorType type = 2;
+
+  // Human-readable description of the input.
+  string description = 3;
+
+  // Extra input metadata.
+  map<string, string> attributes = 20;
+}
+
+// Declares one external output of the model inference interface.
+//
+// Outputs describe the runtime tensors returned by inference.
+// Their semantic meaning may be further explained using role and binding.
+message OutputSpec {
+  // Output name.
+  //
+  // This must resolve to a named value produced within the model.
+  // Specifically, it must match either an InputSpec.name or a NodeOutput.name
+  // visible in the enclosing graph namespace.
+  string name = 1;
+
+  // Output tensor type and shape contract.
+  TensorType type = 2;
+
+  // High-level semantic role of the output.
+  OutputRole role = 3;
+
+  // Optional semantic binding for the output.
+  OutputBinding binding = 4;
+
+  // Human-readable description of the output.
+  string description = 5;
+
+  // Optional names for the last dimension of the output, if applicable.
+  //
+  // For shape [N, D], field_names length should be D.
+  // For shape [N], this field may be omitted or contain exactly one name.
+  // For higher-rank outputs, this field applies only to the last dimension.
+  repeated string field_names = 6;
+
+  // Extra output metadata.
+  map<string, string> attributes = 20;
+}
+
+// Semantic binding for an output.
+//
+// This message adds model-level meaning to a runtime output tensor.
+// It is intentionally flexible because different model families expose
+// different output semantics.
+message OutputBinding {
+  // Associated target name, if the output is tied to a specific target.
+  //
+  // This is useful for multi-target models.
+  //
+  // Validator rule:
+  // If an output has role = PROBABILITY and target_name resolves to a Target,
+  // then either:
+  // - The output encodes probabilities for all classes together, in which
+  //   case the size of the last dimension of that output's type.shape must
+  //   equal the number of Target.class_labels for BINARY and MULTICLASS targets
+  // - Or the output encodes the probability of a single class, in which
+  //   case OutputBinding may identify the bound class explicitly; if no class
+  //   is bound, the output refers to the probability of the prediction
+  string target_name = 1;
+
+  // Values associated with the semantic axis of the output, if applicable.
+  //
+  // Examples:
+  // - Probability outputs aligned to class labels
+  // - Score vectors aligned to categories
+  // - Ranked outputs aligned to candidate values
+  // - A single bound class for a single-column probability output
+  //
+  // For classification probability or score vectors, these values should
+  // match the corresponding Target.class_labels ordering when applicable.
+  //
+  // For a single-column probability output bound to one class, this list
+  // should contain exactly that one class value.
+  repeated Scalar values = 2;
+
+  // Associated segment identifier, if the output is emitted by a segment.
+  string segment_id = 3;
+
+  // Associated rank, if the output is ranked or top-k style.
+  //
+  // Example: rank = 1 for top-1.
+  int32 rank = 4;
+
+  // Extra binding metadata.
+  map<string, string> attributes = 20;
+}
+
+// ============================================================
+// Model schema
+// ============================================================
+
+// Logical schema describing optional model features and targets.
+//
+// ModelSchema is optional.
+//
+// When ModelSchema is absent, all model inputs are treated as features
+// by default using the input names and input tensor types declared in
+// the external inference interface.
+//
+// ModelSchema provides a way to attach richer semantic information to
+// selected features and targets, such as:
+//
+// - measurement level
+// - value domains
+// - missing / invalid / outlier handling
+// - logical source / index mappings
+//
+// Producers do not need to emit ModelSchema when no additional feature
+// or target information is required.
+//
+// Even when ModelSchema is present, producers may emit only the subset
+// of features that need extra semantic information, and omit other
+// features that are fully implied by the model inputs.
+//
+// For a feature that directly corresponds to a same-named input, and does
+// not need additional binding information, duplicated fields such as
+// source and type may be omitted.
+//
+// If a feature refers to an input with a different name, such as a matrix
+// input, source and type must be provided explicitly.
+//
+// ModelSchema is not represented as a Node, but it semantically precedes
+// all ordinary nodes in the graph.
+//
+// Feature names are logical feature identifiers. They are not automatically
+// introduced as separate DAG-visible values. DAG-visible names come from
+// InputSpec.name and NodeOutput.name.
+//
+// For matrix- or tensor-like inputs, ModelSchema preprocessing may cause
+// the processed parent value to expose named fields derived from
+// Feature.name. Downstream nodes can refer to such a single feature through
+// NameRef { value, field }, where value is the parent input or output name
+// and field is the feature name.
+//
+// Example: matrix input
+//
+//   InputSpec: name = "X"
+//
+//   Feature:   name = "age",
+//              source = "X",
+//              index = 0,
+//              type = { dtype: FLOAT32, shape: [N] },
+//              measure_level = CONTINUOUS,
+//              domain = { continuous = { intervals = [
+//                { left_margin: 0, right_margin: 120, closure: CLOSED_CLOSED }
+//              ] } },
+//              missing_value_policy = MISSING_AS_VALUE,
+//              missing_replacement_value = { double_value: 0 }
+//
+//   Feature:   name = "income",
+//              source = "X",
+//              index = 1,
+//              type = { dtype: FLOAT32, shape: [N] },
+//              measure_level = CONTINUOUS,
+//              domain = { continuous = { intervals = [
+//                { left_margin: 0, right_margin: 1000000, closure: CLOSED_CLOSED }
+//              ] } },
+//              outlier_value_policy = OUTLIER_AS_EXTREME
+//
+// After ModelSchema preprocessing:
+// - "X" remains the DAG-visible value
+// - "X" exposes named fields "age" and "income"
+//
+// Downstream nodes may refer to:
+// - NameRef { value: "X" }
+// - NameRef { value: "X", field: "age" }
+// - NameRef { value: "X", field: "income" }
+message ModelSchema {
+  // Logical input features used by the model.
+  repeated Feature features = 1;
+
+  // Logical target fields associated with the model.
+  repeated Target targets = 2;
+}
+
+// Range of auto-generated names: prefix + str(i) for i in [start, end).
+// Example: { prefix: "f", start: 0, end: 500 } expands to "f0".."f499".
+//
+// width gives optional zero-padding (minimum, not maximum):
+// { prefix: "f", start: 0, end: 500, width: 3 } expands to "f000".."f499".
+// width = 0 means no padding.
+//
+// Expansion order is ascending in i. Validators must reject ranges with
+// start < 0, end < start, or width < 0.
+message NameRange {
+  // Fixed string prefix for generated names.
+  string prefix = 1;
+
+  // Inclusive starting index.
+  int32 start = 2;
+
+  // Exclusive ending index.
+  int32 end = 3;
+
+  // Minimum zero-padding width for the numeric suffix.
+  int32 width = 4;
+}
+
+// Logical feature description.
+//
+// A Feature attaches semantic information to one logical model input
+// feature, such as measurement level, value domain, missing / invalid /
+// outlier handling, logical source mapping, or other feature metadata.
+//
+// Feature.name is a logical feature identifier. It does not automatically
+// become a separate DAG-visible value. For matrix- or tensor-like sources,
+// it may instead define the named field exposed on the processed parent
+// value, which downstream nodes can access through NameRef.field.
+message Feature {
+  // Policy applied when an input feature is missing.
+  enum MissingValuePolicy {
+    // Default behavior: missing stays missing and propagates through evaluation.
+    MISSING_PROPAGATE = 0;
+
+    // Replace missing with the configured replacement value.
+    MISSING_AS_VALUE = 1;
+
+    // Reinterpret missing as an invalid value.
+    MISSING_AS_INVALID = 2;
+  }
+
+  // Policy applied when an input feature is invalid.
+  enum InvalidValuePolicy {
+    // Default behavior: invalid input remains invalid / yields invalid result.
+    INVALID_RETURN_INVALID = 0;
+
+    // Keep and use the original value as-is.
+    INVALID_AS_IS = 1;
+
+    // Reinterpret invalid as missing.
+    INVALID_AS_MISSING = 2;
+
+    // Replace invalid with the configured replacement value.
+    INVALID_AS_VALUE = 3;
+  }
+
+  // Policy applied when an input feature is an outlier.
+  enum OutlierValuePolicy {
+    // Default behavior: keep the original outlier value.
+    OUTLIER_AS_IS = 0;
+
+    // Treat outlier as missing.
+    OUTLIER_AS_MISSING = 1;
+
+    // Clamp outlier to an extreme or boundary value.
+    OUTLIER_AS_EXTREME = 2;
+  }
+
+  // Exactly one of these specifies which logical feature or features this
+  // declaration covers.
+  //
+  // If range is used, this declaration is equivalent to multiple Feature
+  // entries, one for each expanded name, with all other fields copied
+  // unchanged. If index is set, expanded features use consecutive source
+  // indices starting at index.
+  //
+  // Validators must check that expanded names do not collide with other
+  // Feature names in the same ModelSchema, and that expanded source
+  // indices remain within the bound InputSpec's column range.
+  oneof naming {
+    // Single logical feature name.
+    string name = 1;
+
+    // Auto-generated range of logical feature names.
+    NameRange range = 2;
+  }
+
+  // Human-readable description of the feature.
+  string description = 3;
+
+  // Feature tensor type.
+  //
+  // Even scalar-like features are represented using TensorType so that
+  // OMLE can support scalar, vector, or higher-rank logical features.
+  //
+  // The feature type describes the internal feature representation after
+  // ModelSchema preprocessing. It may differ from the external input type.
+  // For example, an input may be FLOAT32 while the corresponding feature
+  // is represented internally as FLOAT64.
+  //
+  // type may be omitted only when the feature directly refers to a
+  // same-named input and the input type already provides the needed
+  // information. Otherwise, type must be provided explicitly.
+  TensorType type = 4;
+
+  // Feature semantic measurement level.
+  MeasureLevel measure_level = 5;
+
+  // Source input name from which this feature is read.
+  //
+  // This typically refers to an InputSpec.name.
+  //
+  // source may be omitted only when the feature directly refers to a
+  // same-named input. Otherwise, source must be provided explicitly.
+  string source = 6;
+
+  // Index within the source input when the source is vector or matrix-like.
+  //
+  // For scalar sources, this is usually 0 or ignored by convention.
+  //
+  // For matrix- or tensor-like sources, this identifies which logical
+  // subfield of the source is described by this Feature.
+  //
+  // When range is used, expanded features use consecutive source indices
+  // starting at this value. Validators must ensure that all expanded
+  // indices remain valid for the bound source input.
+  int32 index = 7;
+
+  // Policy applied when the feature value is missing.
+  MissingValuePolicy missing_value_policy = 8;
+
+  // Replacement value used when missing_value_policy = MISSING_AS_VALUE.
+  Scalar missing_replacement_value = 9;
+
+  // Policy applied when the feature value is invalid.
+  InvalidValuePolicy invalid_value_policy = 10;
+
+  // Replacement value used when invalid_value_policy = INVALID_AS_VALUE.
+  Scalar invalid_replacement_value = 11;
+
+  // Policy applied when the feature value is an outlier.
+  OutlierValuePolicy outlier_value_policy = 12;
+
+  // Optional declared value domain for the feature.
+  //
+  // This domain constrains or documents expected values. Consumers may use it
+  // for validation, conversion, or interpretation.
+  ValueDomain domain = 13;
+
+  // Extra feature metadata.
+  map<string, string> attributes = 20;
+}
+
+// Logical target field description.
+//
+// A Target describes a supervised target field associated with the model,
+// such as a regression target or a classification label space.
+// It captures the semantic definition of the target variable, which is
+// distinct from OutputSpec, the runtime output interface.
+message Target {
+  // High-level task type of a target.
+  enum TargetKind {
+    // Unspecified target kind.
+    TARGET_KIND_UNSPECIFIED = 0;
+
+    // Regression target.
+    REGRESSION = 1;
+
+    // Binary classification target.
+    BINARY = 2;
+
+    // Multi-class classification target.
+    MULTICLASS = 3;
+  }
+
+  // Target name.
+  string name = 1;
+
+  // Target tensor type.
+  TensorType type = 2;
+
+  // High-level task type for the target.
+  TargetKind kind = 3;
+
+  // Target semantic measurement level.
+  MeasureLevel measure_level = 4;
+
+  // Classification labels in target value order.
+  //
+  // Used for BINARY and MULTICLASS targets.
+  repeated Scalar class_labels = 5;
+
+  // Human-readable description of the target.
+  string description = 6;
+
+  // Extra target metadata.
+  map<string, string> attributes = 20;
+}
+
+// ============================================================
+// Value domains
+// ============================================================
+
+// Declared value domain for a feature or output.
+//
+// A domain may include:
+//
+// - continuous numeric constraints via intervals
+// - discrete or categorical declared values
+//
+// Both continuous and discrete components may be present together when
+// needed to preserve source semantics more accurately.
+message ValueDomain {
+  // Continuous numeric constraints, if any.
+  ContinuousDomain continuous = 1;
+
+  // Discrete or categorical declared values, if any.
+  DiscreteDomain discrete = 2;
+}
+
+// Continuous numeric domain defined by intervals.
+message ContinuousDomain {
+  // Allowed intervals for the value.
+  //
+  // Multiple intervals may be used to describe disjoint allowed ranges.
+  repeated Interval intervals = 1;
+}
+
+// Numeric interval declaration.
+//
+// Interval boundaries are stored as Scalar values.
+// Integer-valued and floating-point boundaries are both supported.
+// Consumers should interpret boundary values according to the surrounding
+// field or tensor type and interval semantics.
+message Interval {
+  // Interval boundary closure type.
+  enum Closure {
+    // Unspecified closure mode.
+    CLOSURE_UNSPECIFIED = 0;
+
+    // Open on both left and right boundaries.
+    OPEN_OPEN = 1;
+
+    // Open on left, closed on right.
+    OPEN_CLOSED = 2;
+
+    // Closed on left, open on right.
+    CLOSED_OPEN = 3;
+
+    // Closed on both left and right boundaries.
+    CLOSED_CLOSED = 4;
+  }
+
+  // Left boundary value.
+  Scalar left_margin = 1;
+
+  // Right boundary value.
+  Scalar right_margin = 2;
+
+  // Whether the interval boundaries are open or closed.
+  Closure closure = 3;
+}
+
+// Discrete value domain declaration.
+message DiscreteDomain {
+  // Declared discrete values.
+  repeated DomainValue values = 1;
+
+  // Whether the declared values are ordered.
+  //
+  // This may be used to express ordinal categorical domains.
+  bool ordered = 2;
+}
+
+// One declared value inside a discrete domain.
+message DomainValue {
+  // Property of a discrete-domain value.
+  enum ValueProperty {
+    // Regular valid domain value.
+    VALID = 0;
+
+    // Explicitly invalid value.
+    INVALID = 1;
+
+    // Explicitly missing value marker.
+    MISSING = 2;
+  }
+
+  // Canonical scalar value represented by this domain entry.
+  Scalar value = 1;
+
+  // Optional original or source value from which value is derived.
+  //
+  // This may be used when the declared domain value is a normalized,
+  // encoded, or canonicalized form of an original source value.
+  Scalar original_value = 2;
+
+  // Optional display name for UI or reporting.
+  string display_name = 3;
+
+  // Property of this value within the domain.
+  ValueProperty property = 4;
+}
+
+// ============================================================
+// Type system
+// ============================================================
+
+// Tensor element type and shape.
+//
+// TensorType describes the semantic tensor contract seen at the model
+// boundary, in logical schema declarations, and in intermediate graph
+// values. It does not itself carry concrete tensor payload data.
+//
+// In OMLE v0.1, every named value in the graph namespace has shape
+// [N, ...], where N is the leading row dimension and is always present.
+// The trailing dimensions, if any, describe the per-row structure of
+// the value.
+//
+// Common examples:
+// - [N] represents one scalar-like value per row
+// - [N, D] represents a length-D vector per row
+// - [N, D1, D2] represents a rank-2 structure per row
+//
+// All dimensions must be statically known at model-build time in v0.1.
+// Dynamic trailing dimensions and ragged tensors are reserved for a
+// future version.
+message TensorType {
+  // Element data type.
+  DataType dtype = 1;
+
+  // Tensor shape.
+  //
+  // Dimensions are ordered from outermost to innermost.
+  // The leading dimension is always the row dimension N.
+  repeated int64 shape = 2;
+}
+
+// ============================================================
+// Tensor values and reusable tensor entries
+// ============================================================
+
+// raw_data encoding contract
+//
+// Applies to raw_data fields in both Tensor and CSRMatrix.
+//
+// Values are stored contiguously in little-endian byte order.
+// The number of values equals the product of shape dimensions (Tensor)
+// or the number of stored sparse values (CSRMatrix).
+//
+// Dtype is always determined by the enclosing type.dtype field —
+// never inferred from data length.
+
+// Wrapper for repeated float values.
+message Float32List {
+  repeated float values = 1;
+}
+
+// Wrapper for repeated double values.
+message Float64List {
+  repeated double values = 1;
+}
+
+// Wrapper for repeated int32 values.
+message Int32List {
+  repeated int32 values = 1;
+}
+
+// Wrapper for repeated int64 values.
+message Int64List {
+  repeated int64 values = 1;
+}
+
+// Wrapper for repeated string values.
+message StringList {
+  repeated string values = 1;
+}
+
+// Wrapper for repeated bool values.
+message BoolList {
+  repeated bool values = 1;
+}
+
+// Wrapper for repeated bytes values.
+message BytesList {
+  repeated bytes values = 1;
+}
+
+// Dense tensor value.
+//
+// Typed payload branches are convenience encodings for common dtypes.
+// For dtypes without a dedicated typed branch, producers must use raw_data.
+//
+// The dtype field in TensorType determines how stored values are
+// interpreted. Consumers must not infer dtype from which payload branch
+// is populated — always use TensorType.dtype.
+message Tensor {
+  // Tensor name used for runtime matching.
+  //
+  // When a Tensor is used through TensorEntry, this name is the effective
+  // runtime tensor name used to match model inputs or outputs.
+  string name = 1;
+
+  // Tensor type metadata.
+  TensorType type = 2;
+
+  // Tensor payload.
+  oneof data {
+    // Canonical binary payload.
+    //
+    // If raw_data is present, it is authoritative.
+    //
+    // See the raw_data encoding contract above.
+    bytes raw_data = 3;
+
+    // FLOAT32 payload values.
+    Float32List float32_data = 4;
+
+    // FLOAT64 payload values.
+    Float64List float64_data = 5;
+
+    // INT32 payload values.
+    Int32List int32_data = 6;
+
+    // INT64 payload values.
+    Int64List int64_data = 7;
+
+    // STRING payload values.
+    StringList string_data = 8;
+
+    // BYTES payload values.
+    BytesList bytes_data = 9;
+
+    // BOOL payload values.
+    BoolList bool_data = 10;
+  }
+}
+
+// Sparse tensor value.
+//
+// OMLE v0.1 sparse tensors are intended primarily for storage and
+// exchange of sparse feature matrices, especially for text and
+// high-dimensional encoded features.
+//
+// In v0.1, SparseTensor is restricted to rank-2 tensors with shape [N, D],
+// where N is the row dimension and D is the feature dimension.
+//
+// SparseTensor is storage-oriented. Only operators that explicitly declare
+// sparse support may consume sparse tensors directly. Other operators must
+// consume dense tensors, typically via an explicit SparseToDense operator.
+message SparseTensor {
+  // Sparse tensor name used for runtime matching.
+  //
+  // When a SparseTensor is used through TensorEntry, this name is the
+  // effective runtime tensor name used to match model inputs or outputs.
+  string name = 1;
+
+  // Sparse tensor type metadata.
+  //
+  // The shape must have exactly two dimensions: [N, D].
+  TensorType type = 2;
+
+  // Default value for unstored entries.
+  //
+  // Entries not explicitly stored in the sparse structure take this value.
+  // If unset, the default is the zero value of SparseTensor.type.dtype.
+  Scalar default_value = 3;
+
+  // Canonical sparse storage format.
+  //
+  // OMLE v0.1 uses CSR as the canonical sparse storage format.
+  CSRMatrix csr = 10;
+}
+
+// Compressed Sparse Row matrix.
+//
+// Represents a rank-2 sparse tensor of shape [N, D] in CSR form.
+//
+// Exactly one stored-value encoding should be used. The enclosing
+// SparseTensor.type.dtype determines how stored values are interpreted.
+// Consumers must not infer dtype from which payload branch is populated —
+// always use SparseTensor.type.dtype.
+message CSRMatrix {
+  // Column index for each stored value.
+  //
+  // The number of indices defines the number of stored values.
+  // Each value must be in [0, D).
+  repeated int64 indices = 1;
+
+  // Row pointer array.
+  //
+  // Length must equal N + 1.
+  // indptr[0] must be 0.
+  // indptr[N] must equal the number of stored values.
+  // Values must be non-decreasing.
+  repeated int64 indptr = 2;
+
+  // Stored sparse values.
+  oneof data {
+    // Canonical binary payload for stored values.
+    //
+    // If raw_data is present, it is authoritative.
+    //
+    // See the raw_data encoding contract above.
+    bytes raw_data = 3;
+
+    // FLOAT32 stored values.
+    Float32List float32_data = 4;
+
+    // FLOAT64 stored values.
+    Float64List float64_data = 5;
+
+    // INT32 stored values.
+    Int32List int32_data = 6;
+
+    // INT64 stored values.
+    Int64List int64_data = 7;
+
+    // STRING stored values.
+    StringList string_data = 8;
+  }
+}
+
+// One reusable tensor entry.
+//
+// The outer id is the reusable reference identifier for this object.
+// The inner Tensor.name or SparseTensor.name is the effective runtime
+// tensor name used when matching model inputs or outputs.
+//
+// Used by model tensor entries, model verification, warm-up requests,
+// and sample input sets.
+message TensorEntry {
+  // Reusable tensor identifier.
+  string id = 1;
+
+  // Tensor value.
+  oneof value {
+    // Dense tensor value.
+    Tensor dense = 2;
+
+    // Sparse tensor value.
+    SparseTensor sparse = 3;
+  }
+
+  // Extra metadata.
+  map<string, string> attributes = 20;
+}
+
+// Reference to a reusable tensor entry.
+//
+// TensorRef resolves by TensorEntry.id in the model tensor entry collection.
+message TensorRef {
+  // Identifier of a referenced TensorEntry.
+  string id = 1;
+}
+
+// Tensor-valued model parameter.
+//
+// TensorValue separates the semantic value of a model parameter from its
+// physical storage representation. A producer may represent the value as:
+//
+// - an inline dense Tensor
+// - an inline SparseTensor
+// - a reference to a reusable TensorEntry
+//
+// The containing field defines whether dense and/or sparse representations
+// are semantically valid for that parameter.
+//
+// TensorRef is storage indirection only. When tensor_ref is used, the
+// referenced TensorEntry must contain a representation permitted by the
+// containing field.
+//
+// This abstraction allows producers to choose inline or referenced storage
+// without changing model semantics, and provides a common extension point
+// for future tensor storage representations.
+message TensorValue {
+  oneof value {
+    // Inline dense tensor value.
+    Tensor tensor = 1;
+
+    // Inline sparse tensor value.
+    SparseTensor sparse = 2;
+
+    // Reference to a reusable TensorEntry.
+    TensorRef tensor_ref = 3;
+  }
+}
+
+// ============================================================
+// Shared name reference
+// ============================================================
+
+// Reference to a named value, or to one named field within that value.
+//
+// NameRef is used where graph logic needs to refer to an upstream value
+// by name. It may refer either to:
+//
+// - the whole named value
+// - one named field within that value
+//
+// If field is unset or empty, the reference resolves to the whole
+// named value identified by value.
+//
+// If field is set, the reference resolves to one named field within
+// the value identified by value.
+//
+// Named fields may come from:
+//
+// - ModelSchema feature names exposed on a processed input or output value
+// - NodeOutput.field_names exposed by a node output
+//
+// NameRef selects at most one field. Selection of multiple fields, field
+// reordering, or projection into a new tensor should be expressed through
+// dedicated operators such as TakeSlots rather than through NameRef itself.
+//
+// Validators must require value to be non-empty. If field is set, the
+// referenced value must expose that field name.
+message NameRef {
+  // Name of the upstream value.
+  string value = 1;
+
+  // Optional field within that value.
+  //
+  // If unset or empty, this reference refers to the whole named value.
+  // If set, this reference refers to exactly one named field within that
+  // value.
+  string field = 2;
+}
+
+// ============================================================
+// Expressions
+// ============================================================
+
+// Tensor expression evaluated over row-aligned named values.
+//
+// Expressions operate on named values visible in the local namespace and
+// on literal values. Named values may be:
+//
+// - columns with shape [N]
+// - matrices with shape [N, F]
+// - higher-rank tensors whose first dimension is N
+//
+// All expression evaluation is row-aligned on the leading batch dimension N.
+// The result must preserve that leading dimension, so every valid expression
+// produces either:
+//
+// - a column with shape [N]
+// - or a tensor whose first dimension is N
+//
+// Expressions are restricted to a closed set of deterministic primitives
+// defined in imported function namespaces. In standard OMLE v0.1, these
+// primitives are provided by the omle.functions namespace.
+//
+// Expressions may perform element-wise operations, fixed-column selection
+// and combination, and other statically shaped tensor computations.
+// They must not perform reductions across rows, row filtering, joins,
+// aggregation, dynamic shape changes, or arbitrary user-defined execution.
+//
+// In v0.1, expression outputs must have statically inferable shape.
+message Expression {
+  oneof kind {
+    // Literal value.
+    //
+    // Literals may be broadcast as needed according to expression rules.
+    Scalar literal = 1;
+
+    // Reference to a named value in the local namespace, or to one named
+    // field within a matrix-like upstream value.
+    //
+    // The referenced value may be a column, matrix, or higher-rank tensor
+    // whose first dimension is N.
+    NameRef ref = 2;
+
+    // Primitive function application.
+    Apply apply = 3;
+  }
+}
+
+// Primitive function application.
+message Apply {
+  // Canonical function name from an imported function namespace
+  // or from a user-defined DefineFunction.
+  string function = 1;
+
+  // Positional expression arguments.
+  //
+  // Arguments may evaluate to columns, matrices, or higher-rank tensors,
+  // but all must be compatible under row-aligned evaluation on the leading
+  // dimension N. The result shape must be statically inferable.
+  repeated Expression arguments = 2;
+}
+
+// ============================================================
+// Predicates
+// ============================================================
+
+// Boolean predicate tree.
+//
+// Predicates are used where OMLE needs explicit logical conditions,
+// especially for trees and segmented logic.
+message Predicate {
+  oneof kind {
+    // Constant true predicate.
+    TruePredicate true_predicate = 1;
+
+    // Constant false predicate.
+    FalsePredicate false_predicate = 2;
+
+    // Simple comparison predicate.
+    SimplePredicate simple = 3;
+
+    // Set membership predicate.
+    SimpleSetPredicate simple_set = 4;
+
+    // Compound boolean predicate.
+    CompoundPredicate compound = 5;
+  }
+}
+
+// Always-true predicate.
+message TruePredicate {}
+
+// Always-false predicate.
+message FalsePredicate {}
+
+// Simple comparison predicate on one column.
+message SimplePredicate {
+  // Comparison operator for a simple predicate.
+  enum Operator {
+    // Unspecified comparison operator.
+    OPERATOR_UNSPECIFIED = 0;
+
+    // Strict less-than comparison.
+    LESS_THAN = 1;
+
+    // Less-than-or-equal comparison.
+    LESS_OR_EQUAL = 2;
+
+    // Strict greater-than comparison.
+    GREATER_THAN = 3;
+
+    // Greater-than-or-equal comparison.
+    GREATER_OR_EQUAL = 4;
+
+    // Equality comparison.
+    EQUAL = 5;
+
+    // Inequality comparison.
+    NOT_EQUAL = 6;
+
+    // True when the column is missing.
+    IS_MISSING = 7;
+
+    // True when the column is not missing.
+    IS_NOT_MISSING = 8;
+  }
+
+  // Name of the column to test, or one named field within a matrix-like
+  // upstream value.
+  //
+  // The reference is resolved through the graph namespace and should resolve
+  // to a [N] value for elementwise predicate evaluation.
+  NameRef column = 1;
+
+  // Comparison operator.
+  Operator op = 2;
+
+  // Comparison value.
+  //
+  // Ignored for IS_MISSING and IS_NOT_MISSING.
+  Scalar value = 3;
+}
+
+// Set-membership predicate on one column.
+message SimpleSetPredicate {
+  // Set-membership operator.
+  enum Operator {
+    // Unspecified operator.
+    OPERATOR_UNSPECIFIED = 0;
+
+    // True if column is in the given set.
+    IN = 1;
+
+    // True if column is not in the given set.
+    NOT_IN = 2;
+  }
+
+  // Name of the column to test, or one named field within a matrix-like
+  // upstream value.
+  //
+  // The reference is resolved through the graph namespace and should resolve
+  // to a [N] value for elementwise predicate evaluation.
+  NameRef column = 1;
+
+  // Set-membership operator.
+  Operator op = 2;
+
+  // Set of values used by the predicate.
+  repeated Scalar values = 3;
+}
+
+// Compound boolean predicate.
+message CompoundPredicate {
+  // Boolean operator used to combine child predicates.
+  enum BooleanOperator {
+    // Unspecified boolean composition.
+    BOOLEAN_OPERATOR_UNSPECIFIED = 0;
+
+    // Logical conjunction.
+    AND = 1;
+
+    // Logical disjunction.
+    OR = 2;
+
+    // Logical exclusive-or.
+    XOR = 3;
+
+    // Surrogate predicate evaluation.
+    //
+    // Predicates are evaluated in order, falling through when the current
+    // predicate result is unknown.
+    SURROGATE = 4;
+  }
+
+  // Boolean composition operator.
+  BooleanOperator op = 1;
+
+  // Child predicates in evaluation order.
+  repeated Predicate predicates = 2;
+}
+
+// ============================================================
+// User-defined functions
+// ============================================================
+
+// User-defined expression function declaration and body.
+//
+// DefineFunction introduces a local parameter scope for its body
+// expression. Parameter names must be unique within the function,
+// and parameter bindings shadow any same-named values from outer
+// graph or composite scopes.
+//
+// Recursion is not allowed, either directly or transitively.
+// Validators must reject duplicate parameter names, unresolved
+// function references, and any cycle in the call graph formed by
+// user-defined functions.
+message DefineFunction {
+  // One function parameter.
+  message Parameter {
+    // Parameter name.
+    string name = 1;
+
+    // Parameter data type.
+    DataType data_type = 2;
+
+    // Parameter semantic measurement level.
+    MeasureLevel measure_level = 3;
+  }
+
+  // Function name.
+  string name = 1;
+
+  // Free-form documentation string.
+  string doc_string = 2;
+
+  // Positional parameters accepted by the function.
+  //
+  // Parameter names must be unique within the function.
+  repeated Parameter parameters = 3;
+
+  // Result data type.
+  DataType result_data_type = 4;
+
+  // Result semantic measurement level.
+  MeasureLevel result_measure_level = 5;
+
+  // Function body expression.
+  Expression body = 6;
+
+  // Extra function metadata.
+  map<string, string> attributes = 20;
+}
+
+// ============================================================
+// Generic nodes
+// ============================================================
+
+// Describes one input reference consumed by a Node.
+//
+// A NodeInput is either:
+//
+// - one named input reference
+// - or a range that expands to consecutive names at load time
+//
+// When name.field is empty, the reference resolves to the whole
+// upstream value.
+//
+// When name.field is set, the reference resolves to exactly one named
+// field within the referenced upstream value.
+//
+// NodeInput itself does not perform multi-field projection. If a node
+// needs multiple named fields from one parent value, they should be
+// provided either as multiple NodeInput entries or by an explicit
+// projection operator such as TakeSlots.
+message NodeInput {
+  oneof ref {
+    // Single input reference.
+    NameRef name = 1;
+
+    // Auto-generated range of input names.
+    NameRange range = 2;
+  }
+}
+
+// Describes one output value produced by a Node.
+//
+// A NodeOutput declares the symbolic name of the value, its tensor type
+// contract, and its logical semantic metadata. Downstream nodes consume
+// outputs by name and may rely on the declared type and metadata for
+// validation and interpretation.
+message NodeOutput {
+  // Output value name, unique within the containing scope.
+  //
+  // Downstream nodes reference this name in their Node.inputs list.
+  string name = 1;
+
+  // Output tensor type and shape contract.
+  //
+  // This declares the dtype and shape that downstream consumers can
+  // expect. Validators use this declared type, together with operator
+  // derivation rules when needed, to check graph compatibility.
+  //
+  // When unset, the type is derived from the operator's registered
+  // output-type derivation rule.
+  TensorType type = 2;
+
+  // Semantic measurement level of the output.
+  //
+  // When unspecified, the measure level is derived from the operator's
+  // registered rule.
+  MeasureLevel measure_level = 3;
+
+  // Optional declared value domain for the output.
+  //
+  // For outputs where the operator produces values in a known range
+  // or set, this domain documents the contract.
+  ValueDomain domain = 4;
+
+  // Human-readable description of the output.
+  string description = 5;
+
+  // High-level semantic role of the output.
+  //
+  // This uses the same enum as OutputSpec.role so that internal graph
+  // values can carry the same semantic categories as external outputs.
+  //
+  // When unspecified, the role may be derived from the operator's
+  // registered output metadata rule.
+  OutputRole role = 6;
+
+  // Optional semantic binding for the output.
+  //
+  // Used to disambiguate when multiple outputs of the same role
+  // exist on the same node, and to carry semantic context such as
+  // the bound target, aligned class label, segment identifier, or
+  // rank position.
+  //
+  // Uses the same OutputBinding message as OutputSpec, so internal
+  // and external output semantics share one vocabulary.
+  //
+  // Validator rule:
+  // Within a node, the pair (role, binding) must be unique across
+  // outputs, with an unspecified binding treated as a single empty
+  // binding value.
+  OutputBinding binding = 7;
+
+  // Optional names for the last dimension of the output, if applicable.
+  //
+  // For shape [N, D], field_names length should be D and labels the
+  // trailing column dimension D.
+  //
+  // For shape [N], this field may be omitted or contain exactly one name.
+  //
+  // For higher-rank outputs, this field applies only to the last dimension.
+  // A NameRef.field may refer to one of these names only when the referenced
+  // value exposes field_names.
+  repeated string field_names = 8;
+
+  // Extra output metadata.
+  map<string, string> attributes = 20;
+}
+
+// Rename one name to another at a scope boundary.
+//
+// Used by CompositeNode to rename enclosing input names to internal names
+// and to rename internal value names to enclosing output names. The
+// direction of the rename is determined by which field the NameAlias
+// appears in, not by the message itself.
+message NameAlias {
+  // Source name. The name being renamed.
+  string from_name = 1;
+
+  // Target name. The new name after renaming.
+  string to_name = 2;
+}
+
+// Composite node body: a subgraph executed in a local namespace.
+//
+// A CompositeNode introduces a local namespace isolated from the enclosing
+// graph. That local namespace is initialized only from the enclosing
+// Node.inputs, optionally renamed by input_aliases:
+//
+// - Each enclosing input is inherited under its external name by default
+// - A NameAlias in input_aliases may rebind an enclosing input to a
+//   different internal name
+// - No other enclosing names are visible inside the composite
+//
+// Thus, an empty input_aliases list means all enclosing inputs are inherited
+// into the local namespace under their original names.
+//
+// As internal nodes execute in topological order, their NodeOutput values
+// extend the local namespace. Local names must be unique: internal outputs
+// must not collide with inherited inputs or with outputs of other internal
+// nodes. Shadowing of inherited inputs is not permitted.
+//
+// Internal nodes may reference only:
+// - Names inherited from the composite's inputs
+// - Names produced by an earlier internal node in the same composite
+//
+// References to names outside the local namespace are validation errors.
+// In particular, internal nodes cannot reference undeclared enclosing names,
+// sibling composite names, or names inside other nested scopes.
+//
+// When the composite completes, values are published back to the enclosing
+// graph under the enclosing Node.outputs names. By default, each enclosing
+// output is published from a local value with the same name. A NameAlias in
+// output_aliases may rebind a local internal name to a different enclosing
+// output name.
+//
+// Thus, an empty output_aliases list means all enclosing outputs are
+// published by direct name match: the composite must contain a local value
+// whose name matches each enclosing output name.
+//
+// Local values not published to an enclosing output are discarded.
+//
+// Name uniqueness is scope-local. Names in different scopes may coincide
+// without conflict. Nested composites introduce their own local namespaces,
+// and these visibility, extension, and publication rules apply recursively
+// at each level.
+message CompositeNode {
+  // Rename enclosing input names to internal names.
+  //
+  // Each enclosing input is inherited into the local namespace under its
+  // external name by default. A NameAlias in input_aliases rebinds one
+  // enclosing input name to a different internal name.
+  //
+  // Thus, an empty input_aliases list means all enclosing inputs inherit
+  // by direct name match.
+  //
+  // Aliases participate in the composite's local uniqueness rules.
+  // to_name values must be unique and must not collide with names
+  // produced by internal nodes.
+  repeated NameAlias input_aliases = 1;
+
+  // Internal nodes, in topological order.
+  //
+  // Each internal node may reference only names already present in the
+  // composite's local namespace: inherited inputs and outputs of earlier
+  // internal nodes. Internal nodes must not reference names from the
+  // enclosing graph unless those names were explicitly imported through
+  // the composite's inputs.
+  repeated Node nodes = 2;
+
+  // Rebind local values to enclosing output names.
+  //
+  // Each enclosing output is published from a local value with the same
+  // name by default. A NameAlias in output_aliases rebinds one local
+  // internal name to a different enclosing output name.
+  //
+  // Thus, an empty output_aliases list means all enclosing outputs are
+  // published by direct name match.
+  //
+  // The effective set of published external names must exactly match the
+  // set of names declared by the enclosing Node.outputs:
+  //
+  // - Every enclosing output must be published exactly once
+  // - No alias may publish to a name not declared by the enclosing outputs
+  //
+  // Local values not published to an enclosing output are discarded when
+  // the composite completes.
+  repeated NameAlias output_aliases = 3;
+}
+
+// Graph node representing a computation stage.
+//
+// OMLE v0.1 graphs are static DAGs. Every declared node produces all of
+// its declared outputs on every inference call.
+//
+// Nodes are the graph-level execution abstraction in OMLE.
+// A node may represent:
+//
+// - A generic operator invocation
+// - A transformation stage
+// - A composite local subgraph
+// - A structured model body
+//
+// Name resolution for node inputs:
+//
+// The graph namespace is populated in two stages:
+//
+// 1. ModelSchema preprocessing (if present)
+// 2. Node outputs
+//
+// Shape model:
+//
+// Every named value visible to a node has shape [N, ...], where N is the
+// leading row dimension and is always present. Trailing dimensions, if any,
+// describe the per-row structure of the value and must be statically known
+// in v0.1.
+//
+// Structured input slot expansion:
+//
+// Some structured node bodies use positional indexing into the containing
+// Node.inputs list. In those cases, indices refer to positions in a flat
+// slot space derived from the inputs, not merely to the top-level input
+// entries themselves.
+//
+// Each input contributes a number of slots equal to the product of its
+// trailing dimensions:
+//
+// - [N] contributes 1 slot
+// - [N, D] contributes D slots
+// - [N, D1, ..., Dk] contributes D1 × ... × Dk slots
+//
+// Slots are ordered by row-major traversal of the trailing dimensions.
+// Thus structured bodies may address one slot of a multi-dimensional input
+// directly. Validators and converters must interpret positional indices
+// using this flat slot space.
+//
+// Scope and name uniqueness:
+//
+// Node and NodeOutput names are unique only within their own scope.
+// The top-level graph and each CompositeNode local namespace form separate
+// scopes. Nested composites introduce nested local scopes recursively.
+message Node {
+  // Node name, unique within the containing scope.
+  string name = 1;
+
+  // Operator namespace.
+  //
+  // Examples include "omle.core", "omle.feature", "omle.ml",
+  // "omle.text", or a vendor-defined namespace such as "vendor.example".
+  string domain = 2;
+
+  // Operator name within the domain.
+  string op = 3;
+
+  // Input references consumed by this node.
+  //
+  // Each entry is either:
+  //
+  // - a single named reference
+  // - or a range that expands to multiple consecutive names
+  //
+  // A single named reference may refer either to:
+  //
+  // - a whole upstream value
+  // - one named field within an upstream value
+  //
+  // Expansion is performed left-to-right, and each range expands in
+  // ascending index order. The resulting flattened reference list is the
+  // effective input list of the node.
+  //
+  // Each referenced value must resolve in the current namespace. When a
+  // named field is referenced, the referenced upstream value must expose
+  // that field name.
+  //
+  // Structured node bodies interpret positional indices against this
+  // expanded input list.
+  repeated NodeInput inputs = 4;
+
+  // Output values produced by this node.
+  //
+  // Validator rules:
+  // - NodeOutput names must be unique within the containing scope
+  // - Within this node, the pair (role, binding) must be unique across
+  //   outputs, with an unspecified binding treated as a single empty
+  //   binding value
+  // - No NodeOutput name may equal any effective whole-value input name of
+  //   the same node; node outputs must introduce new names in the
+  //   containing scope
+  repeated NodeOutput outputs = 5;
+
+  // Operator attributes.
+  repeated Attribute attributes = 6;
+
+  // Optional specialized executable body for the node.
+  //
+  // Lower field numbers are intentionally left available for future
+  // non-model body extensions.
+  oneof body {
+    // Composite node body: a subgraph executed in a local namespace.
+    CompositeNode composite = 20;
+
+    // Structured model family implementations.
+    Tree tree = 30;
+    TreeEnsemble tree_ensemble = 31;
+    Linear linear = 32;
+    NaiveBayes naive_bayes = 33;
+    Clustering clustering = 34;
+    SVM svm = 35;
+    NeuralNetwork neural_network = 36;
+    AnomalyDetection anomaly_detection = 37;
+  }
+
+  // Extra node metadata.
+  map<string, string> metadata = 100;
+}
+
+// Generic attribute attached to a node.
+message Attribute {
+  // Attribute name.
+  string name = 1;
+
+  oneof value {
+    // Integer attribute.
+    int64 i = 2;
+
+    // Float32 attribute.
+    float f32 = 3;
+
+    // Float64 attribute.
+    double f64 = 4;
+
+    // String attribute.
+    string s = 5;
+
+    // Boolean attribute.
+    bool b = 6;
+
+    // Integer list attribute.
+    Int64List ints = 7;
+
+    // Float32 list attribute.
+    Float32List float32s = 8;
+
+    // Float64 list attribute.
+    Float64List float64s = 9;
+
+    // String list attribute.
+    StringList strings = 10;
+
+    // Boolean list attribute.
+    BoolList bools = 11;
+
+    // Reference to a reusable tensor entry.
+    //
+    // Prefer this when the tensor is shared across multiple places or is
+    // large enough that centralized storage is preferable.
+    TensorRef tensor_ref = 12;
+
+    // Inline dense tensor value.
+    //
+    // Prefer this when the tensor is small and local to this node.
+    Tensor tensor = 13;
+
+    // Inline sparse tensor value.
+    //
+    // Prefer this when the sparse tensor is small and local to this node.
+    SparseTensor sparse = 14;
+
+    // Tensor type attribute.
+    TensorType type = 15;
+
+    // Embedded expression attribute.
+    Expression expr = 16;
+
+    // Embedded predicate attribute.
+    Predicate predicate = 17;
+  }
+}
+
+// ============================================================
+// Structured model bodies
+// ============================================================
+//
+// Tensor-valued parameters in structured model bodies use TensorValue.
+//
+// TensorValue controls physical representation only. The containing field
+// defines the semantic tensor requirements, including dtype, shape, and
+// whether sparse representation is permitted. Validators must reject a
+// TensorValue whose resolved representation is incompatible with the
+// containing field.
+//
+// Shared post transforms.
+//
+// PostTransform is shared by multiple structured model bodies and applies
+// after the raw score or aggregated value has been computed.
+enum PostTransform {
+  // Unspecified post-transform.
+  POST_TRANSFORM_UNSPECIFIED = 0;
+
+  // No transform.
+  IDENTITY = 1;
+
+  // Sigmoid transform.
+  SIGMOID = 2;
+
+  // Sigmoid with binary probability expansion.
+  //
+  // Converts a single raw score into a two-column probability output
+  // [1 - p, p], where p = sigmoid(score).
+  SIGMOID_BINARY = 3;
+
+  // Softmax transform.
+  SOFTMAX = 4;
+
+  // Logit transform.
+  LOGIT = 5;
+
+  // Probit transform.
+  PROBIT = 6;
+
+  // Exponential transform.
+  //
+  // Common for Poisson regression, Cox regression, and similar
+  // non-classification models where the natural output is exp(score).
+  EXP = 7;
+
+  // Complementary log-log inverse link.
+  CLOGLOG = 8;
+
+  // Cauchit inverse link.
+  CAUCHIT = 9;
+
+  // Log-log inverse link.
+  LOGLOG = 10;
+}
+
+// Flat-array tree representation.
+//
+// This structure is designed to support efficient inference-oriented
+// representation of decision trees while still allowing a fallback for
+// more complex split logic.
+//
+// Tree split representation uses three layers:
+//
+// - Compact split fields for common numeric comparisons
+// - Category-set fields for set-membership splits
+// - The complex_predicates field as a sparse fallback for cases that cannot
+//   be represented by the compact fields
+message Tree {
+  // High-level task type of the tree.
+  //
+  // Typical values:
+  // - REGRESSION
+  // - BINARY
+  // - MULTICLASS
+  // - ANOMALY_DETECTION
+  //
+  // For BINARY and MULTICLASS, class ordering and label semantics are
+  // defined by the corresponding Target.class_labels. Structured model
+  // parameters and outputs must align to that target order.
+  TaskType task_type = 1;
+
+  // Kind of node in the tree.
+  enum NodeKind {
+    // Unspecified node kind.
+    NODE_KIND_UNSPECIFIED = 0;
+
+    // Leaf node.
+    LEAF = 1;
+
+    // Branch or split node.
+    BRANCH = 2;
+  }
+
+  // Compact split operator for a branch node.
+  enum SplitOp {
+    // Unspecified split operator.
+    SPLIT_OP_UNSPECIFIED = 0;
+
+    // Strict less-than comparison.
+    LESS_THAN = 1;
+
+    // Less-than-or-equal comparison.
+    LESS_OR_EQUAL = 2;
+
+    // Strict greater-than comparison.
+    GREATER_THAN = 3;
+
+    // Greater-than-or-equal comparison.
+    GREATER_OR_EQUAL = 4;
+
+    // Equality comparison.
+    EQUAL = 5;
+
+    // Inequality comparison.
+    NOT_EQUAL = 6;
+
+    // Membership in a category set.
+    IN_SET = 7;
+
+    // Non-membership in a category set.
+    NOT_IN_SET = 8;
+
+    // Missing-value test.
+    IS_MISSING = 9;
+  }
+
+  // Full predicate override for a branch node that cannot be represented
+  // by the compact split fields.
+  message ComplexPredicate {
+    // Index of the tree node to which the predicate applies.
+    int32 node_index = 1;
+
+    // Full predicate for the node.
+    Predicate predicate = 2;
+  }
+
+  // Number of nodes in the tree.
+  int32 num_nodes = 2;
+
+  // Node kind for each node index.
+  //
+  // Array length should equal num_nodes.
+  repeated NodeKind node_kind = 3;
+
+  // Per-node fast-path split feature reference.
+  //
+  // split_feature indexes the flat slot space derived from the containing
+  // Node.inputs list, not merely the top-level inputs themselves.
+  //
+  // Used only for branch nodes whose split can be represented by the
+  // compact split fields.
+  repeated int32 split_feature = 10;
+
+  // Per-node numeric split threshold tensor value.
+  //
+  // The tensor should contain one threshold value per node in node index
+  // order. Consumers use the value only for nodes whose split can be
+  // represented by numeric compact split fields.
+  TensorValue split_threshold = 11;
+
+  // Per-node compact split operator.
+  //
+  // Used only for branch nodes represented by the compact split fields.
+  repeated SplitOp split_op = 12;
+
+  // Per-node offset into category_set for set-membership splits.
+  //
+  // Used when split_op is IN_SET or NOT_IN_SET.
+  repeated int32 category_set_offset = 20;
+
+  // Per-node number of category values used for set-membership splits.
+  //
+  // Used when split_op is IN_SET or NOT_IN_SET.
+  repeated int32 category_set_count = 21;
+
+  // Flat pool of category/set values used by set-membership splits.
+  //
+  // These are integer-encoded category identifiers in the encoded feature
+  // space seen by the tree, rather than original raw string labels or
+  // Scalar literals.
+  repeated int32 category_set = 22;
+
+  // Sparse full predicates for complex split cases.
+  //
+  // When a node is covered by complex_predicates, consumers should use
+  // the full predicate semantics for that node instead of interpreting
+  // only the compact split fields.
+  repeated ComplexPredicate complex_predicates = 23;
+
+  // Flat child index pool.
+  //
+  // Child nodes for one tree node occupy a contiguous slice of this array,
+  // addressed by children_offset and children_count.
+  repeated int32 children_index = 30;
+
+  // Per-node offset into children_index.
+  repeated int32 children_offset = 31;
+
+  // Per-node number of children.
+  repeated int32 children_count = 32;
+
+  // Per-node default child used for missing or default routing.
+  //
+  // Used primarily for branch nodes. Interpretation is model-specific when
+  // no explicit missing branch exists.
+  repeated int32 default_child = 33;
+
+  // Scalar leaf output tensor value. Ignored for branch nodes.
+  //
+  // Used when leaf outputs are scalar-valued.
+  TensorValue leaf_value = 40;
+
+  // Width of each leaf output.
+  //
+  // A value of 0 or 1 typically indicates scalar leaves. Values greater
+  // than 1 indicate vector-valued leaves stored in leaf_vector.
+  int32 leaf_width = 41;
+
+  // Tensor value containing flat storage for vector leaf outputs.
+  //
+  // Vector leaf values are stored contiguously and addressed through
+  // leaf_vector_index.
+  TensorValue leaf_vector = 42;
+
+  // Per-node offset into leaf_vector for vector leaves.
+  //
+  // Ignored for branch nodes and for scalar-only leaf layouts.
+  repeated int32 leaf_vector_index = 43;
+}
+
+// Structured tree ensemble body.
+//
+// TreeEnsemble combines multiple Tree bodies using an explicit aggregation
+// rule, optional per-tree weights, optional base score, and an optional
+// post-transform.
+//
+// The ensemble may represent regression, classification, or other tree-based
+// score aggregation patterns depending on downstream output semantics.
+message TreeEnsemble {
+  // High-level task type of the tree ensemble.
+  //
+  // Typical values:
+  // - REGRESSION
+  // - BINARY
+  // - MULTICLASS
+  // - ANOMALY_DETECTION
+  //
+  // For BINARY and MULTICLASS, class ordering and label semantics are
+  // defined by the corresponding Target.class_labels. Structured model
+  // parameters and outputs must align to that target order.
+  TaskType task_type = 1;
+
+  // Aggregation rule used to combine tree outputs.
+  enum Aggregation {
+    // Unspecified aggregation.
+    AGGREGATION_UNSPECIFIED = 0;
+
+    // Sum of tree outputs.
+    SUM = 1;
+
+    // Average of tree outputs.
+    AVERAGE = 2;
+
+    // Weighted sum of tree outputs.
+    WEIGHTED_SUM = 3;
+
+    // Weighted average of tree outputs.
+    WEIGHTED_AVERAGE = 4;
+
+    // Majority vote across trees.
+    MAJORITY_VOTE = 5;
+
+    // Soft-vote aggregation across trees.
+    SOFT_VOTE = 6;
+
+    // Minimum tree output.
+    MIN = 7;
+
+    // Maximum tree output.
+    MAX = 8;
+  }
+
+  // Trees in the ensemble.
+  //
+  // Trees are evaluated independently and then combined according to
+  // aggregation.
+  repeated Tree trees = 2;
+
+  // Aggregation rule used to combine tree outputs.
+  Aggregation aggregation = 3;
+
+  // Optional per-tree weight tensor value.
+  //
+  // If present, the tensor should align with trees in tree index order.
+  // Used by weighted aggregation modes and may be ignored otherwise.
+  optional TensorValue tree_weights = 4;
+
+  // Optional explicit base score or bias.
+  //
+  // If absent, no explicit base score is provided.
+  // If present, the exact value is used.
+  optional Scalar base_score = 5;
+
+  // Optional tree-to-class grouping for multiclass ensembles.
+  //
+  // This may be used when trees are arranged in class-specific groups.
+  repeated int32 tree_group = 6;
+
+  // Post-transform applied after aggregation.
+  //
+  // Examples include IDENTITY, SIGMOID, or SOFTMAX depending on the source
+  // model semantics.
+  PostTransform post_transform = 10;
+}
+
+// Structured linear model body.
+//
+// Linear represents affine scoring over the flattened slot space derived
+// from the containing Node.inputs list. It is suitable for regression,
+// linear classification, generalized linear style models, and Bayesian
+// linear regression models whose output is computed from coefficients,
+// intercept, and an optional post-transform.
+message Linear {
+  // High-level task type of the linear model.
+  //
+  // Typical values:
+  // - REGRESSION
+  // - BINARY
+  // - MULTICLASS
+  // - ANOMALY_DETECTION
+  //
+  // For BINARY and MULTICLASS, class ordering and label semantics are
+  // defined by the corresponding Target.class_labels. Structured model
+  // parameters and outputs must align to that target order.
+  TaskType task_type = 1;
+
+  // Coefficient tensor value.
+  //
+  // The feature axis is aligned to the flattened input slot space of the
+  // containing node.
+  //
+  // Typical shapes:
+  // - [num_features] for single-output regression or binary classification
+  // - [num_outputs, num_features] for multi-output regression or multiclass
+  //   classification
+  TensorValue coefficients = 2;
+
+  // Optional intercept or bias tensor value.
+  //
+  // Typical shapes:
+  // - [1] or scalar-like for single-output models
+  // - [num_outputs] for multi-output or multiclass models
+  //
+  // If absent, the intercept is treated as zero.
+  optional TensorValue intercept = 3;
+
+  // Optional posterior covariance tensor value(s) of the weights.
+  //
+  // This is used only for inference-time uncertainty estimation in Bayesian
+  // linear models such as BayesianRidge and ARDRegression.
+  //
+  // Typical shapes:
+  // - [num_features, num_features] for single-output regression
+  // - [num_outputs, num_features, num_features] for multi-output regression
+  //   with independent posterior covariance per output
+  //
+  // If present together with noise_precision, predictive variance can be
+  // computed at inference time.
+  //
+  // If absent, only mean prediction is available.
+  optional TensorValue weight_covariances = 4;
+
+  // Optional observation-noise precision tensor value.
+  //
+  // This corresponds to the inverse of the observation noise variance in
+  // Bayesian linear regression models.
+  //
+  // Typical shapes:
+  // - [1] or scalar-like for single-output regression
+  // - [num_outputs] for multi-output regression with independent output noise
+  //
+  // If present together with weight_covariances, it enables computation of
+  // predictive variance or predictive standard deviation at inference time.
+  //
+  // If absent, only mean prediction is available.
+  optional TensorValue noise_precision = 5;
+
+  // Optional post-transform applied after affine scoring.
+  //
+  // Examples include SIGMOID, SIGMOID_BINARY, SOFTMAX, or EXP depending on
+  // the source model. If unspecified, IDENTITY is typically implied.
+  PostTransform post_transform = 10;
+}
+
+// Structured Naive Bayes body.
+//
+// NaiveBayes represents classical conditional-independence models with an
+// explicit class prior tensor and one variant-specific parameterization.
+// All feature axes are aligned to the flattened slot space derived from the
+// containing Node.inputs list.
+//
+// NaiveBayes has intrinsic probabilistic semantics. Raw class scores are
+// converted to normalized class probabilities by the model definition
+// itself, so a separate PostTransform is not used.
+message NaiveBayes {
+  // High-level task type of the Naive Bayes model.
+  //
+  // Typical values:
+  // - BINARY
+  // - MULTICLASS
+  //
+  // For BINARY and MULTICLASS, class ordering and label semantics are
+  // defined by the corresponding Target.class_labels. Structured model
+  // parameters and outputs must align to that target order.
+  TaskType task_type = 1;
+
+  // Class log-prior tensor value with shape [num_classes].
+  TensorValue class_log_priors = 2;
+
+  // Variant-specific parameters.
+  //
+  // Exactly one branch should be populated.
+  oneof implementation {
+    GaussianNaiveBayes gaussian = 10;
+    MultinomialNaiveBayes multinomial = 11;
+    BernoulliNaiveBayes bernoulli = 12;
+    CategoricalNaiveBayes categorical = 13;
+  }
+}
+
+// Gaussian Naive Bayes parameters.
+message GaussianNaiveBayes {
+  // Class-conditional means tensor value, shape
+  // [num_classes, num_features].
+  //
+  // num_features is the size of the flat slot space derived from the
+  // containing Node.inputs list.
+  TensorValue means = 1;
+
+  // Class-conditional variances tensor value, shape
+  // [num_classes, num_features].
+  //
+  // num_features is the size of the flat slot space derived from the
+  // containing Node.inputs list.
+  TensorValue variances = 2;
+
+  // Optional variance smoothing epsilon.
+  //
+  // If present, this value is added or otherwise incorporated according
+  // to the converted model semantics to avoid zero-variance instability.
+  optional Scalar variance_epsilon = 3;
+}
+
+// Multinomial Naive Bayes parameters.
+message MultinomialNaiveBayes {
+  // Feature log-probability tensor value, shape
+  // [num_classes, num_features].
+  //
+  // num_features is the size of the flat slot space derived from the
+  // containing Node.inputs list.
+  TensorValue feature_log_prob = 1;
+}
+
+// Bernoulli Naive Bayes parameters.
+message BernoulliNaiveBayes {
+  // Feature log-probability tensor value, shape
+  // [num_classes, num_features].
+  //
+  // num_features is the size of the flat slot space derived from the
+  // containing Node.inputs list.
+  TensorValue feature_log_prob = 1;
+
+  // Optional threshold used to binarize inputs.
+  //
+  // If absent, the source model's default binarization behavior is assumed.
+  optional Scalar binarize_threshold = 2;
+}
+
+// Categorical Naive Bayes parameters.
+message CategoricalNaiveBayes {
+  // Flattened category log-probability tensor value.
+  //
+  // The effective feature axis is aligned to the flat slot space derived
+  // from the containing Node.inputs list.
+  //
+  // Within one class row, per-feature category tables are laid out
+  // contiguously and described by category_offset and category_count.
+  TensorValue category_log_prob = 1;
+
+  // Per-feature category table offsets within one class row.
+  repeated int32 category_offset = 2;
+
+  // Per-feature category counts.
+  repeated int32 category_count = 3;
+}
+
+// Structured clustering body.
+//
+// Clustering represents unsupervised clustering models whose inference
+// semantics are driven either by prototype distance comparison or Gaussian
+// mixture density evaluation.
+message Clustering {
+  // High-level task type of the clustering model.
+  //
+  // Typical value:
+  // - CLUSTERING
+  TaskType task_type = 1;
+
+  oneof implementation {
+    // Prototype-based clustering model such as k-means.
+    PrototypeClustering prototype = 10;
+
+    // Gaussian mixture model.
+    GaussianMixtureClustering gaussian_mixture = 11;
+  }
+}
+
+// Prototype-based clustering parameters.
+message PrototypeClustering {
+  // Distance metric used for prototype-based clustering.
+  enum DistanceMeasure {
+    // Unspecified distance measure.
+    DISTANCE_MEASURE_UNSPECIFIED = 0;
+
+    // Euclidean distance.
+    EUCLIDEAN = 1;
+
+    // Squared Euclidean distance.
+    SQUARED_EUCLIDEAN = 2;
+
+    // Manhattan distance.
+    MANHATTAN = 3;
+
+    // Cosine distance or similarity-derived metric.
+    COSINE = 4;
+  }
+
+  // Centroid tensor value, shape [num_clusters, num_features].
+  //
+  // num_features is the size of the flat slot space derived from the
+  // containing Node.inputs list.
+  TensorValue centers = 1;
+
+  // Distance metric used for assignment or scoring.
+  DistanceMeasure distance_measure = 2;
+
+  // Optional cluster labels or names in cluster order.
+  //
+  // When present, cluster_labels[i] corresponds to centers[i].
+  repeated Scalar cluster_labels = 3;
+}
+
+// Gaussian mixture clustering parameters.
+message GaussianMixtureClustering {
+  // Covariance layout used by the covariance tensor.
+  enum CovarianceType {
+    // Unspecified covariance layout.
+    COVARIANCE_TYPE_UNSPECIFIED = 0;
+
+    // Full covariance matrix per cluster.
+    FULL = 1;
+
+    // Diagonal covariance per cluster.
+    DIAGONAL = 2;
+
+    // One scalar variance per cluster.
+    SPHERICAL = 3;
+  }
+
+  // Component weight tensor value, shape [num_clusters].
+  TensorValue weights = 1;
+
+  // Component mean tensor value, shape [num_clusters, num_features].
+  TensorValue means = 2;
+
+  // Component covariance tensor value.
+  //
+  // Shape depends on covariance_type.
+  TensorValue covariances = 3;
+
+  // Covariance layout used by covariances.
+  CovarianceType covariance_type = 4;
+
+  // Optional component labels or names in component order.
+  //
+  // When present, component_labels[i] corresponds to component i.
+  repeated Scalar component_labels = 5;
+}
+
+// Structured support vector machine body.
+//
+// SVM represents inference-time support vector machine models in either
+// linear or kernelized form. It is intended for compact classical SVM
+// models whose semantics are better preserved explicitly than lowered into
+// generic graph operators.
+//
+// The SVM body defines:
+//
+// - The high-level task type of the model
+// - Optional multiclass decomposition strategy
+// - An optional post-transform applied to raw decision values
+// - Either linear or kernel-specific parameters
+//
+// Class label semantics are taken from the corresponding Target.
+// SVM does not duplicate class_labels in the model body.
+message SVM {
+  enum MulticlassStrategy {
+    MULTICLASS_STRATEGY_UNSPECIFIED = 0;
+    ONE_VS_REST = 1;
+    ONE_VS_ONE = 2;
+  }
+
+  // High-level task type of the SVM.
+  //
+  // Typical values:
+  // - REGRESSION
+  // - BINARY
+  // - MULTICLASS
+  // - ANOMALY_DETECTION
+  //
+  // For BINARY and MULTICLASS, class ordering and label semantics are
+  // defined by the corresponding Target.class_labels. Structured model
+  // parameters and outputs must align to that target order.
+  TaskType task_type = 1;
+
+  // Multiclass decomposition strategy.
+  //
+  // Required when task_type is MULTICLASS.
+  // Must be absent or UNSPECIFIED for all other task types.
+  // Validators must reject models where multiclass_strategy is set
+  // for non-multiclass task types.
+  //
+  // ONE_VS_ONE multiclass is preferably expressed at the graph level
+  // using multiple binary SVM nodes with MajorityVote aggregation.
+  // ONE_VS_REST is the natural single-node representation.
+  optional MulticlassStrategy multiclass_strategy = 3;
+
+  // Variant-specific parameters.
+  //
+  // Exactly one implementation branch should be populated.
+  oneof implementation {
+    // Linear SVM parameters.
+    LinearSVM linear = 10;
+
+    // Kernel SVM parameters.
+    KernelSVM kernel = 11;
+  }
+
+  // Optional post-transform applied after raw decision scoring.
+  //
+  // Many SVMs use IDENTITY here, but converted pipelines may apply a
+  // post-transform such as SIGMOID when probability-like outputs or
+  // calibrated scores are represented directly in the model body.
+  PostTransform post_transform = 20;
+}
+
+// Structured linear SVM parameters.
+//
+// LinearSVM represents an SVM whose decision function is expressed directly
+// over the flattened input slot space of the containing node.
+message LinearSVM {
+  // Coefficient tensor value.
+  //
+  // The feature axis is aligned to the flattened slot space derived from
+  // the containing Node.inputs list.
+  //
+  // The semantic interpretation of the output is determined by the
+  // enclosing SVM.task_type and, for multiclass models,
+  // SVM.multiclass_strategy.
+  //
+  // Typical shapes:
+  // - [num_features] for binary classification, regression, or anomaly detection
+  // - [num_classes, num_features] for ONE_VS_REST multiclass
+  //
+  // ONE_VS_ONE multiclass should not be expressed as a single LinearSVM node.
+  // Converters must decompose OvO into multiple binary LinearSVM nodes
+  // at the graph level using MajorityVote aggregation.
+  TensorValue coefficients = 1;
+
+  // Optional intercept or bias tensor value.
+  //
+  // Typical shapes:
+  // - [1] or scalar-like for binary classification, regression, or anomaly detection
+  // - [num_classes] for ONE_VS_REST multiclass layouts
+  //
+  // If absent, the intercept is treated as zero.
+  optional TensorValue intercept = 2;
+}
+
+// Structured kernel SVM parameters.
+//
+// KernelSVM represents an SVM whose decision function is expressed in terms
+// of support vectors, dual coefficients, intercept terms, and kernel
+// parameters.
+message KernelSVM {
+  // Kernel function used by the SVM.
+  enum KernelType {
+    // Unspecified kernel.
+    KERNEL_TYPE_UNSPECIFIED = 0;
+
+    // Linear kernel.
+    LINEAR = 1;
+
+    // Polynomial kernel.
+    POLY = 2;
+
+    // Radial basis function kernel.
+    RBF = 3;
+
+    // Sigmoid kernel.
+    SIGMOID = 4;
+  }
+
+  // Kernel type.
+  KernelType kernel_type = 1;
+
+  // Support-vector tensor value.
+  //
+  // Shape: [total_support_vectors, num_features].
+  //
+  // The feature dimension must match the flattened slot count derived from
+  // the containing Node.inputs list.
+  TensorValue support_vectors = 2;
+
+  // Dual-coefficient tensor value.
+  //
+  // This tensor stores the support-vector coefficients used in the kernel
+  // decision function.
+  //
+  // Typical shapes:
+  // - [total_support_vectors] for binary classification, regression,
+  //   or anomaly detection
+  // - [n_classes, total_support_vectors] for ONE_VS_REST multiclass
+  //   where each row contains coefficients for one binary sub-model
+  //
+  // Note: libSVM internal layout uses [n_classes - 1, total_support_vectors]
+  // for OvO decomposition. Converters should not use this layout directly —
+  // express OvO at the graph level instead.
+  TensorValue dual_coefficients = 3;
+
+  // Optional intercept tensor value.
+  //
+  // Typical shapes:
+  // - [1] for binary classification, regression, or anomaly detection
+  // - [num_classes] or similar class-aligned layout for single-node
+  //   multiclass representations
+  //
+  // If absent, the intercept is treated as zero.
+  optional TensorValue intercept = 4;
+
+  // Kernel gamma parameter.
+  //
+  // Used by RBF, POLY, and SIGMOID kernels.
+  // If absent, consumers should apply a framework-specific default
+  // (for example, 1 / num_features in common implementations).
+  // Validators should warn when kernel_type requires gamma and it is absent.
+  optional Scalar gamma = 5;
+
+  // Polynomial degree.
+  //
+  // Used only by POLY kernels.
+  // If absent for POLY kernel, consumers should default to 3.
+  // Validators should warn when kernel_type is POLY and degree is absent.
+  optional int32 degree = 6;
+
+  // Independent kernel coefficient.
+  //
+  // Used by POLY and SIGMOID kernels.
+  // If absent, defaults to 0.0.
+  optional Scalar coef0 = 7;
+
+  // Optional number of support vectors per class.
+  //
+  // Length must equal the number of classes when present.
+  // Sum of all values must equal total_support_vectors (shape[0] of
+  // support_vectors tensor).
+  // If absent, support vectors are treated as unpartitioned.
+  repeated int64 n_support = 8;
+
+  // Optional Platt-scaling A tensor value for probability calibration.
+  //
+  // These correspond to sklearn SVC / NuSVC probability calibration when
+  // probability=True.
+  //
+  // Shape:
+  // - [n_outputs]
+  //
+  // For each calibrated output, probabilities are derived from decision
+  // values using a sigmoid of the form:
+  //
+  //   p = 1 / (1 + exp(decision_value * A + B))
+  //
+  // where A comes from prob_a and B comes from prob_b.
+  //
+  // If absent, raw decision scores are used without this calibration.
+  optional TensorValue prob_a = 9;
+
+  // Optional Platt-scaling B tensor value for probability calibration.
+  //
+  // These correspond to sklearn SVC / NuSVC probability calibration when
+  // probability=True.
+  //
+  // Shape:
+  // - [n_outputs]
+  //
+  // prob_b is paired elementwise with prob_a for each calibrated output.
+  // If absent, raw decision scores are used without this calibration.
+  optional TensorValue prob_b = 10;
+}
+
+// Structured classical feed-forward neural network body.
+//
+// This message represents a classical multilayer perceptron style model
+// composed of an ordered sequence of fully connected layers and standard
+// activation functions.
+//
+// NeuralNetwork is intended for compact inference-oriented representation
+// of classical feed-forward models, such as scikit-learn MLP classifiers
+// and regressors. It does not represent general deep-learning graphs,
+// convolutional networks, recurrent networks, or attention-based models.
+//
+// Evaluation proceeds layer by layer in the order given by layers.
+// Each layer computes:
+//
+//   y = activation(weights * x + bias)
+//
+// where x is the previous layer output or the flattened node input slot
+// vector for the first layer.
+//
+// NeuralNetwork intentionally omits post_transform.
+// Output transformations are expressed via the final DenseLayer.activation.
+// Converters must fold any post-processing transform into the final layer
+// rather than applying it externally.
+//
+// Class label semantics are taken from the corresponding Target.
+// NeuralNetwork does not duplicate class_labels in the model body.
+message NeuralNetwork {
+  // Activation function applied after an affine transformation.
+  //
+  // For one layer with weights W, bias b, and input x, the layer output is:
+  //
+  //   activation(W * x + b)
+  enum Activation {
+    // Unspecified activation.
+    ACTIVATION_UNSPECIFIED = 0;
+
+    // Identity activation.
+    IDENTITY = 1;
+
+    // Logistic sigmoid activation.
+    LOGISTIC = 2;
+
+    // Hyperbolic tangent activation.
+    TANH = 3;
+
+    // Rectified linear unit activation.
+    RELU = 4;
+
+    // Softmax activation.
+    //
+    // SOFTMAX is valid only on the final layer.
+    // Validators must reject models where SOFTMAX appears on any layer
+    // other than the last entry in NeuralNetwork.layers.
+    SOFTMAX = 5;
+  }
+
+  // One dense fully connected layer.
+  //
+  // Layers are evaluated in order. The output size of one layer must match
+  // the input size of the next layer.
+  message DenseLayer {
+    // Weight tensor value.
+    //
+    // Shape: [out_features, in_features].
+    //
+    // The second dimension must match the input width of this layer.
+    // The first dimension defines the output width of this layer.
+    TensorValue weights = 1;
+
+    // Optional bias tensor value.
+    //
+    // Shape: [out_features].
+    //
+    // If absent, bias is treated as zero.
+    optional TensorValue bias = 2;
+
+    // Activation applied after the affine transformation.
+    //
+    // Must not be ACTIVATION_UNSPECIFIED.
+    // Validators must reject layers where activation is unspecified.
+    Activation activation = 3;
+
+    // Optional layer name for diagnostics and debugging.
+    string name = 4;
+  }
+
+  // High-level task type of the network.
+  //
+  // Typical values:
+  // - REGRESSION
+  // - BINARY
+  // - MULTICLASS
+  //
+  // For BINARY and MULTICLASS, class ordering and label semantics are
+  // defined by the corresponding Target.class_labels. Structured model
+  // parameters and outputs must align to that target order.
+  TaskType task_type = 1;
+
+  // Ordered dense layers of the network.
+  //
+  // Validators must require at least one layer.
+  // For layer i > 0: layers[i].weights.shape[1] must equal
+  // layers[i - 1].weights.shape[0].
+  // For layer 0: layers[0].weights.shape[1] must match the flattened
+  // slot count derived from the containing Node.inputs list.
+  repeated DenseLayer layers = 2;
+}
+
+// ============================================================
+// Structured anomaly detection body
+// ============================================================
+
+// Structured anomaly detection model body.
+//
+// AnomalyDetection represents models whose primary purpose is to score
+// inputs by abnormality and optionally produce a binary anomaly decision.
+//
+// Recommended output conventions:
+//
+// - role = SCORE for a normalized anomaly score
+// - role = PREDICTION for the final anomaly decision
+// - role = INTERMEDIATE for raw implementation-specific scores
+//
+// The normalized anomaly score exposed by converters should preferably use
+// the convention:
+//
+// - higher score means more abnormal
+//
+// even if the source framework uses the opposite polarity internally.
+message AnomalyDetection {
+  // Detection operating mode.
+  enum DetectionMode {
+    // Unspecified detection mode.
+    DETECTION_MODE_UNSPECIFIED = 0;
+
+    // Outlier detection.
+    //
+    // The model is used to detect abnormal samples within data that may
+    // already contain outliers.
+    OUTLIER_DETECTION = 1;
+
+    // Novelty detection.
+    //
+    // The model is trained on normal data and is used to detect whether
+    // new incoming samples are abnormal.
+    NOVELTY_DETECTION = 2;
+  }
+
+  // Polarity of the raw implementation-specific score.
+  enum ScorePolarity {
+    // Unspecified score polarity.
+    SCORE_POLARITY_UNSPECIFIED = 0;
+
+    // Larger raw scores indicate more abnormal samples.
+    HIGHER_MORE_ABNORMAL = 1;
+
+    // Smaller raw scores indicate more abnormal samples.
+    LOWER_MORE_ABNORMAL = 2;
+  }
+
+  // High-level task type of the model.
+  //
+  // This must be ANOMALY_DETECTION.
+  TaskType task_type = 1;
+
+  // Detection operating mode.
+  DetectionMode mode = 2;
+
+  // Polarity of the raw implementation-specific score.
+  //
+  // This documents how the native raw score should be interpreted before
+  // any converter normalization.
+  ScorePolarity raw_score_polarity = 3;
+
+  // Optional anomaly decision threshold.
+  //
+  // If present, this threshold may be used together with the converted
+  // anomaly score or decision function to produce a binary prediction.
+  //
+  // If absent, the model may still expose a score-only interface or rely
+  // on implementation-specific defaults.
+  optional Scalar threshold = 4;
+
+  // Variant-specific parameters.
+  //
+  // Exactly one implementation branch should be populated.
+  oneof implementation {
+    // Isolation forest detector.
+    IsolationForest isolation_forest = 10;
+
+    // Kernel one-class SVM detector.
+    OneClassSVM one_class_svm = 11;
+
+    // Linear one-class SVM detector.
+    LinearOneClassSVM linear_one_class_svm = 12;
+
+    // Local outlier factor detector.
+    LocalOutlierFactor local_outlier_factor = 13;
+
+    // Robust Gaussian envelope detector.
+    EllipticEnvelope elliptic_envelope = 14;
+  }
+}
+
+// Isolation forest anomaly detector.
+//
+// IsolationForest is a tree-based anomaly detector whose score is derived
+// from path lengths across an ensemble of isolation trees.
+//
+// This structure is intentionally separate from TreeEnsemble because the
+// scoring semantics are anomaly-specific rather than ordinary regression
+// or classification aggregation.
+message IsolationForest {
+  // Isolation trees in the ensemble.
+  //
+  // These trees follow the same flat tree representation used elsewhere
+  // in OMLE, but their evaluation semantics here are specific to
+  // isolation-based anomaly scoring.
+  repeated Tree trees = 1;
+
+  // Number of samples used for path-length normalization.
+  //
+  // This usually corresponds to the effective max_samples used by the
+  // source model.
+  int64 max_samples = 2;
+
+  // Optional implementation-specific offset.
+  //
+  // When present, this may be used to convert raw scores into a centered
+  // decision function.
+  optional Scalar offset = 3;
+}
+
+// Kernel one-class SVM detector.
+//
+// OneClassSVM represents a kernelized one-class support vector model used
+// for anomaly or novelty detection.
+message OneClassSVM {
+  // Underlying kernel SVM parameters.
+  KernelSVM kernel_svm = 1;
+
+  // Optional implementation-specific offset.
+  //
+  // When present, this may be used to convert the raw boundary score into
+  // a centered decision function.
+  optional Scalar offset = 2;
+}
+
+// Linear one-class SVM detector.
+//
+// LinearOneClassSVM represents a linear anomaly boundary model.
+message LinearOneClassSVM {
+  // Coefficient tensor value.
+  //
+  // Shape:
+  // - [num_features]
+  TensorValue coefficients = 1;
+
+  // Optional intercept or bias tensor value.
+  //
+  // Shape:
+  // - [1] or scalar-like
+  //
+  // If absent, the intercept is treated as zero.
+  optional TensorValue intercept = 2;
+
+  // Optional implementation-specific offset.
+  //
+  // When present, this may be used to convert the raw boundary score into
+  // a centered decision function.
+  optional Scalar offset = 3;
+}
+
+// Local outlier factor detector.
+//
+// LocalOutlierFactor is a neighborhood-density-based anomaly detector.
+//
+// This structure stores the reference samples and neighborhood settings
+// needed for inference-time density comparison.
+message LocalOutlierFactor {
+  // Reference-sample tensor value used by the detector.
+  //
+  // Shape:
+  // - [num_reference_samples, num_features]
+  TensorValue reference_samples = 1;
+
+  // Number of neighbors used for local density comparison.
+  int32 n_neighbors = 2;
+
+  // Distance metric name.
+  //
+  // Examples:
+  // - "euclidean"
+  // - "manhattan"
+  // - "minkowski"
+  string metric = 3;
+
+  // Optional metric parameters encoded as strings.
+  //
+  // This keeps the representation compact while still allowing framework-
+  // specific metric configuration to be preserved when needed.
+  map<string, string> metric_params = 4;
+
+  // Optional implementation-specific offset.
+  //
+  // When present, this may be used to convert the raw LOF-derived score
+  // into a centered decision function.
+  optional Scalar offset = 5;
+}
+
+// Robust Gaussian envelope detector.
+//
+// EllipticEnvelope models the normal region using robust location and
+// covariance estimates and scores samples by their deviation from that
+// envelope.
+message EllipticEnvelope {
+  // Robust location tensor value.
+  //
+  // Shape:
+  // - [num_features]
+  TensorValue location = 1;
+
+  // Covariance tensor value.
+  //
+  // Shape:
+  // - [num_features, num_features]
+  TensorValue covariance = 2;
+
+  // Optional precision tensor value.
+  //
+  // Shape:
+  // - [num_features, num_features]
+  //
+  // If present, consumers may use it directly instead of inverting
+  // covariance during inference.
+  optional TensorValue precision = 3;
+
+  // Optional implementation-specific offset.
+  //
+  // When present, this may be used to convert the raw distance-based score
+  // into a centered decision function.
+  optional Scalar offset = 4;
+}
+
+// ============================================================
+// Verification, warm-up, and sample inputs
+// ============================================================
+
+// Numeric comparison tolerance used for verification.
+//
+// Two numeric values are considered equal when:
+//
+//   abs(actual - expected) <= atol + rtol * abs(expected)
+//
+// For tensor outputs, this rule is applied elementwise.
+message NumericTolerance {
+  // Maximum absolute error allowed.
+  optional Scalar atol = 1;
+
+  // Maximum relative error allowed.
+  optional Scalar rtol = 2;
+}
+
+// Verification cases for model correctness.
+//
+// These cases are intended for converter validation, runtime
+// cross-checking, and regression testing.
+message ModelVerification {
+  // Verification cases.
+  repeated VerificationCase cases = 1;
+
+  // Numeric tolerance used for output comparison.
+  NumericTolerance tolerance = 2;
+}
+
+// One verification case.
+message VerificationCase {
+  // References to reusable tensors used as model inputs.
+  //
+  // The set of effective input names of the resolved tensors must match
+  // the model inputs.
+  repeated TensorRef inputs = 1;
+
+  // References to reusable tensors used as expected model outputs.
+  //
+  // The set of effective output names of the resolved tensors must match
+  // the model outputs.
+  repeated TensorRef expected_outputs = 2;
+
+  // Human-readable description of the verification case.
+  string description = 3;
+}
+
+// Warm-up requests for runtime initialization.
+//
+// Warm-up requests are non-normative execution examples intended to help
+// runtimes initialize execution paths, caches, memory allocation, or JIT
+// compilation before serving real requests.
+message RuntimeWarmup {
+  // Warm-up execution cases.
+  repeated WarmupCase cases = 1;
+}
+
+// One warm-up execution case.
+message WarmupCase {
+  // References to reusable tensors used as model inputs.
+  //
+  // The set of effective input names of the resolved tensors must match
+  // the model inputs.
+  repeated TensorRef inputs = 1;
+
+  // Human-readable description of the warm-up case.
+  string description = 2;
+
+  // Number of times to execute this warm-up case.
+  //
+  // Values less than 1 are invalid.
+  // If omitted, the effective value is 1.
+  int32 repeat = 3;
+}
+
+// Sample inputs for end-user reference.
+//
+// These examples are informational. They are intended to show users what
+// kinds of inputs should be provided to the external inference interface.
+message SampleInputSet {
+  // Example input cases.
+  repeated SampleInputCase cases = 1;
+}
+
+// One sample input case.
+message SampleInputCase {
+  // References to reusable tensors used as model inputs.
+  //
+  // The set of effective input names of the resolved tensors must match
+  // the model inputs.
+  repeated TensorRef inputs = 1;
+
+  // Human-readable description of the sample input.
+  string description = 2;
+}

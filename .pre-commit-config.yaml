@@ -1,0 +1,59 @@
+# Optional but recommended:
+#   pip install pre-commit && pre-commit install
+#
+# The local hooks below run with `language: system`, so they use whatever Python
+# is on PATH — activate the dev environment first (see CONTRIBUTING.md).
+#
+# Deliberately absent: an autoformatter. `ruff check` enforces the Google Python
+# Style Guide rules listed in pyproject.toml, but `ruff format` would rewrite the
+# manual alignment this codebase uses (aligned dict values, section dividers).
+# Adopting a formatter is a reasonable decision, but a separate one.
+
+exclude: '^(docs/|src/omle/proto/omle_pb2\.py)'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.7
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+
+  - repo: local
+    hooks:
+      # The registries are the spec. Catch a malformed operator entry here
+      # rather than at build time.
+      - id: validate-registry
+        name: validate operator and function registries
+        entry: python tools/validate_registry.py
+        language: system
+        pass_filenames: false
+        files: ^registries/
+
+      # docs/ is generated from the registries and checked in. It has drifted
+      # before; this keeps the published reference honest.
+      - id: registry-docs-current
+        name: docs/ regenerated from registries
+        entry: python tools/check_docs_current.py
+        language: system
+        pass_filenames: false
+        files: ^(registries/|tools/gen_docs\.py)
+
+      # The suite runs in well under a second, so it is cheap to gate on.
+      - id: pytest
+        name: pytest
+        entry: pytest tests/ -q
+        language: system
+        pass_filenames: false
+        types: [python]
