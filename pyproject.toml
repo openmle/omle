@@ -57,14 +57,14 @@ convert = [
     "omle-convert",
 ]
 runtime = [
-    "omleruntime",
+    "omle-runtime",
 ]
 viewer = [
     "omle-viewer",
 ]
 all = [
     "omle-convert",
-    "omleruntime",
+    "omle-runtime",
     "omle-viewer",
 ]
 dev = [

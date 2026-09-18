@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
@@ -517,6 +519,28 @@ def _cmd_convert(convert_args: list[str]) -> int:
     return 0
 
 
+# ── predict subcommand ───────────────────────────────────────────────────────
+
+def _cmd_predict(predict_args: list[str]) -> int:
+    """Forward to the omle-predict executable that omle-runtime installs.
+
+    `convert` borrows a Python parser from its package; omle-predict is a
+    native binary instead, so this hands argv over and returns its exit code.
+    Locating the real tool rather than restating it here keeps one
+    implementation, and one definition of the CSV formats it reads and writes.
+    """
+    exe = shutil.which("omle-predict")
+    if exe is None:
+        print(
+            "Error: omle-predict is not installed.\n"
+            "Install it with:  pip install omle-runtime",
+            file=sys.stderr,
+        )
+        return 2
+
+    return subprocess.call([exe, *predict_args])
+
+
 # ── view subcommand ──────────────────────────────────────────────────────────
 
 def _cmd_view(args: argparse.Namespace) -> int:
@@ -557,6 +581,15 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser(
         "convert",
         help="Convert an ML model to OMLE format (requires omle-convert)",
+        add_help=False,
+    )
+
+    # ── predict ──────────────────────────────────────────────────────────────
+    # add_help=False for the same reason as convert: -h belongs to the tool
+    # being forwarded to, not to this parser.
+    sub.add_parser(
+        "predict",
+        help="Score a model over a CSV of features (requires omle-runtime)",
         add_help=False,
     )
 
@@ -628,11 +661,13 @@ def main(argv: Optional[list[str]] = None) -> None:
     if argv is None:
         argv = sys.argv[1:]
 
-    # Intercept 'convert' before building the normal parser so that all
-    # arguments (including --help and flags) are forwarded verbatim to
-    # omle-convert, which owns its own argument parser.
+    # Intercept the subcommands that delegate to another package before
+    # building the normal parser, so that every argument (including --help and
+    # flags) is forwarded verbatim to the tool that owns its own parser.
     if argv and argv[0] == "convert":
         sys.exit(_cmd_convert(argv[1:]))
+    if argv and argv[0] == "predict":
+        sys.exit(_cmd_predict(argv[1:]))
 
     parser = _build_parser()
     args = parser.parse_args(argv)

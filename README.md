@@ -127,10 +127,19 @@ omle convert saved_pipeline/ output.omle   # Spark ML
 omle convert model.json      output.omle   # XGBoost JSON (or CatBoost JSON)
 omle convert model.txt       output.omle   # LightGBM
 omle convert model.cbm       output.omle   # CatBoost native
+
+# Score a model over a CSV of features (requires omle-runtime).
+# Input CSV: one sample per line, comma-separated floats, no header.
+# Predictions are written to the output file; stdout reports what was scored.
+omle predict model.omle features.csv predictions.csv
+omle predict model.omle                            # model metadata only
 ```
 
-`omle convert` forwards all arguments to `omle-convert`; see its
-[README](https://github.com/openmle/omle-convert) for the full option set.
+`omle convert` and `omle predict` forward all arguments to `omle-convert` and
+`omle-predict` respectively; see the
+[omle-convert](https://github.com/openmle/omle-convert) and
+[omle-runtime](https://github.com/openmle/omle-runtime) READMEs for their full
+option sets.
 
 ## Reference
 

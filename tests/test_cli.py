@@ -312,3 +312,61 @@ def test_inspect_missing_file(capsys):
     with pytest.raises(SystemExit) as exc:
         main(["inspect", "/nonexistent/model.json"])
     assert exc.value.code == 2
+
+
+# ── predict ───────────────────────────────────────────────────────────────────
+# `predict` forwards to the omle-predict binary that omle-runtime installs, in
+# the same shape as `convert`. The binary is not a dependency of this package,
+# so the tests cover the dispatch: the not-installed path, and that arguments
+# and exit status are handed through untouched.
+
+def test_predict_without_runtime_installed(monkeypatch, capsys):
+    monkeypatch.setattr("shutil.which", lambda _name: None)
+    with pytest.raises(SystemExit) as exc:
+        main(["predict", "model.omle"])
+    assert exc.value.code == 2
+    assert "pip install omle-runtime" in capsys.readouterr().err
+
+
+def test_predict_forwards_args_and_exit_code(monkeypatch):
+    seen = {}
+
+    def fake_call(cmd):
+        seen["cmd"] = cmd
+        return 3
+
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/omle-predict")
+    monkeypatch.setattr("subprocess.call", fake_call)
+
+    with pytest.raises(SystemExit) as exc:
+        main(["predict", "model.omle", "in.csv", "out.csv"])
+
+    assert exc.value.code == 3
+    assert seen["cmd"] == [
+        "/usr/local/bin/omle-predict", "model.omle", "in.csv", "out.csv",
+    ]
+
+
+def test_predict_forwards_help_rather_than_intercepting_it(monkeypatch):
+    # -h belongs to omle-predict, not to this parser; the subcommand is
+    # registered with add_help=False so it never gets swallowed here.
+    seen = {}
+
+    def fake_call(cmd):
+        seen["cmd"] = cmd
+        return 0
+
+    monkeypatch.setattr("shutil.which", lambda _name: "omle-predict")
+    monkeypatch.setattr("subprocess.call", fake_call)
+
+    with pytest.raises(SystemExit):
+        main(["predict", "-h"])
+
+    assert seen["cmd"] == ["omle-predict", "-h"]
+
+
+def test_predict_is_listed_in_help(capsys):
+    parser = _build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--help"])
+    assert "predict" in capsys.readouterr().out
