@@ -446,8 +446,7 @@ def _copy_tree_ensemble(te: _ir_bodies.TreeEnsemble, msg: Any, pb2: Any) -> None
     msg.aggregation = te.aggregation.value
     msg.post_transform = te.post_transform.value
     _copy_tensor_value(te.tree_weights, msg.tree_weights, pb2)
-    if te.base_score is not None:
-        _copy_scalar(te.base_score, msg.base_score)
+    _copy_tensor_value(te.base_scores, msg.base_scores, pb2)
     msg.tree_group.extend(te.tree_group)
 
 

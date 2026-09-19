@@ -298,7 +298,7 @@ def _body_summary(body) -> str:
     if isinstance(body, TreeEnsemble):
         return (f"{len(body.trees)} trees"
                 f"  agg={body.aggregation.name}"
-                + (f"  base={body.base_score}" if body.base_score is not None else ""))
+                + (f"  base={body.base_scores}" if body.base_scores is not None else ""))
     if isinstance(body, Tree):
         return f"{body.num_nodes} nodes"
     if isinstance(body, NaiveBayes):

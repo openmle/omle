@@ -223,12 +223,12 @@ def test_tree_ensemble_roundtrip():
                     leaf_value=TensorValue.of_tensor(Tensor(float64_data=[1.0])))],
         aggregation=TreeAggregation.SUM,
         post_transform=PostTransform.SIGMOID,
-        base_score=Scalar(double_value=0.5),
+        base_scores=TensorValue.of_tensor(Tensor(float64_data=[0.5])),
     )
     rt = TreeEnsemble.from_dict(te.to_dict())
     assert len(rt.trees) == 1
     assert rt.aggregation == TreeAggregation.SUM
-    assert rt.base_score == Scalar(double_value=0.5)
+    assert rt.base_scores.tensor.float64_data == [0.5]
 
 
 # ── Node ──────────────────────────────────────────────────────────────────────

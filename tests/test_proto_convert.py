@@ -155,7 +155,7 @@ def _build_tree_ensemble_model() -> OMLEModel:
                     trees=[tree],
                     aggregation=TreeAggregation.SUM,
                     post_transform=PostTransform.SIGMOID,
-                    base_score=Scalar(double_value=0.5),
+                    base_scores=TensorValue.of_tensor(Tensor(float64_data=[0.5])),
                 ),
             )
         ],
@@ -222,7 +222,7 @@ def test_ir_to_proto_tree_ensemble(proto_json):
     assert len(node.tree_ensemble.trees) == 1
     assert node.tree_ensemble.trees[0].num_nodes == 3
     assert node.tree_ensemble.aggregation == TreeAggregation.SUM.value
-    assert abs(node.tree_ensemble.base_score.double_value - 0.5) < 1e-9
+    assert abs(node.tree_ensemble.base_scores.tensor.float64_data.values[0] - 0.5) < 1e-9
 
 
 def test_ir_to_proto_functions(proto_json):
@@ -296,7 +296,7 @@ def test_proto_roundtrip_tree_ensemble(proto_json):
     assert node.tree_ensemble is not None
     assert len(node.tree_ensemble.trees) == 1
     assert node.tree_ensemble.aggregation == TreeAggregation.SUM
-    assert abs(node.tree_ensemble.base_score.double_value - 0.5) < 1e-9
+    assert abs(node.tree_ensemble.base_scores.tensor.float64_data[0] - 0.5) < 1e-9
 
 
 def test_proto_roundtrip_metadata(proto_json):

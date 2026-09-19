@@ -224,7 +224,8 @@ class TreeEnsemble:
     aggregation: TreeAggregation = TreeAggregation.AGGREGATION_UNSPECIFIED
     post_transform: PostTransform = PostTransform.POST_TRANSFORM_UNSPECIFIED
     tree_weights: Optional[TensorValue] = None
-    base_score: Optional[Scalar] = None
+    # One value shared by every output, or one per output in target order.
+    base_scores: Optional[TensorValue] = None
     tree_group: list[int] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -238,7 +239,7 @@ class TreeEnsemble:
             aggregation=enum_from_dict(TreeAggregation, d.get("aggregation")),
             post_transform=enum_from_dict(PostTransform, d.get("post_transform")),
             tree_weights=TensorValue.from_dict(d["tree_weights"]) if "tree_weights" in d else None,
-            base_score=Scalar.from_dict(d["base_score"]) if "base_score" in d else None,
+            base_scores=TensorValue.from_dict(d["base_scores"]) if "base_scores" in d else None,
             tree_group=list(d.get("tree_group", [])),
         )
 

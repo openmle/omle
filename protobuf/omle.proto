@@ -2333,11 +2333,17 @@ message TreeEnsemble {
   // Used by weighted aggregation modes and may be ignored otherwise.
   optional TensorValue tree_weights = 4;
 
-  // Optional explicit base score or bias.
+  // Optional base scores, added to the aggregated tree output before
+  // post_transform.
   //
-  // If absent, no explicit base score is provided.
-  // If present, the exact value is used.
-  optional Scalar base_score = 5;
+  // If absent, no base score is applied. If present, the tensor holds either a
+  // single value applied to every output, or exactly one value per model
+  // output, in the output order defined by the corresponding Target.
+  //
+  // A TensorValue rather than a scalar, for the same reason as tree_weights
+  // above: an ensemble may carry one intercept per output, and a single shared
+  // intercept is the one-element case.
+  optional TensorValue base_scores = 5;
 
   // Optional tree-to-class grouping for multiclass ensembles.
   //
