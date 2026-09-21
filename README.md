@@ -1,5 +1,8 @@
 # OMLE
 
+[![PyPI](https://img.shields.io/pypi/v/omle.svg)](https://pypi.org/project/omle/)
+[![Tests](https://github.com/openmle/omle/actions/workflows/test.yml/badge.svg)](https://github.com/openmle/omle/actions/workflows/test.yml)
+
 **Open Machine Learning Exchange** — an open, schema-aware interchange format for classical machine learning inference.
 
 OMLE provides a compact binary format (protobuf) for representing trained ML models and their preprocessing and postprocessing pipelines. It preserves model semantics at a level practical for interoperability, conversion, validation, and deployment-oriented inference across major ML ecosystems.
@@ -25,26 +28,6 @@ OMLE fills this gap with a modern binary format that combines PMML's semantic ri
 | Binary format | ✗ | ✓ | ✓ |
 | Versioned operator registry | ✗ | ✓ | ✓ |
 | Permissive license | ✓ | ✓ | ✓ |
-
-## Design
-
-OMLE uses a hybrid representation:
-
-- **Logical schema** — named features and targets with types, measure levels, value domains, and preprocessing policies (missing, invalid, outlier handling)
-- **Graph nodes** — a DAG of named operators spanning preprocessing, model scoring, and postprocessing
-- **Structured model bodies** — dedicated proto messages for classical ML families where preserving high-level semantics matters
-
-### Data Model
-
-Every named value in the graph has shape `[N, ...]`, where `N` is the leading row dimension. The graph operates on a namespace of named tensors — nodes consume named values and produce new named values. Structured implementations use positional indexing into a flat slot space derived from their input list.
-
-### Expression DSL
-
-OMLE includes an elementwise expression sub-DSL for per-column derived computations. Expressions operate on `[N]` columns using a versioned set of 61 primitives (arithmetic, comparison, logical, math, conditional, null handling, string, date, type conversion, value mapping). The expression language is separate from the graph operator set — graph nodes handle structurally interesting operations, expressions handle elementwise math.
-
-### Scope Isolation
-
-`CompositeNode` introduces local namespaces for subgraph isolation. Internal nodes only see names explicitly passed as inputs — no transitive visibility into enclosing scopes. This enables clean composition of preprocessing pipelines and multi-model architectures without name collisions.
 
 ## Installation
 
@@ -141,10 +124,25 @@ omle predict model.omle                            # model metadata only
 [omle-runtime](https://github.com/openmle/omle-runtime) READMEs for their full
 option sets.
 
-## Reference
+## Design
 
-- **[Specification](https://github.com/openmle/omle/blob/main/spec/README.md)** — proto schema, registries, versioning
-- **[Operator and function reference](https://github.com/openmle/omle/blob/main/docs/README.md)** — every ML model family, feature operator and expression primitive, generated from the registries
+OMLE uses a hybrid representation:
+
+- **Logical schema** — named features and targets with types, measure levels, value domains, and preprocessing policies (missing, invalid, outlier handling)
+- **Graph nodes** — a DAG of named operators spanning preprocessing, model scoring, and postprocessing
+- **Structured model bodies** — dedicated proto messages for classical ML families where preserving high-level semantics matters
+
+### Data Model
+
+Every named value in the graph has shape `[N, ...]`, where `N` is the leading row dimension. The graph operates on a namespace of named tensors — nodes consume named values and produce new named values. Structured implementations use positional indexing into a flat slot space derived from their input list.
+
+### Expression DSL
+
+OMLE includes an elementwise expression sub-DSL for per-column derived computations. Expressions operate on `[N]` columns using a versioned set of 61 primitives (arithmetic, comparison, logical, math, conditional, null handling, string, date, type conversion, value mapping). The expression language is separate from the graph operator set — graph nodes handle structurally interesting operations, expressions handle elementwise math.
+
+### Scope Isolation
+
+`CompositeNode` introduces local namespaces for subgraph isolation. Internal nodes only see names explicitly passed as inputs — no transitive visibility into enclosing scopes. This enables clean composition of preprocessing pipelines and multi-model architectures without name collisions.
 
 ## Ecosystem
 
@@ -153,6 +151,8 @@ option sets.
 | [`omle`](https://github.com/openmle/omle)                 | Python | This package — IR, protobuf I/O, validation, CLI |
 | [`omle-convert`](https://github.com/openmle/omle-convert) | Python | Converters from trained models to `.omle` |
 | [`omle-runtime`](https://github.com/openmle/omle-runtime) | C++ (Python/Java bindings) | Inference runtime |
+| [`omle-spark`](https://github.com/openmle/omle-spark)     | Scala + Python | Spark ML transformer — scores DataFrames from Scala or PySpark, cross-built for Scala 2.12/2.13 |
+| [`omle-server`](https://github.com/openmle/omle-server)   | C++ (Python package) | Open Inference Protocol (OIP) server — REST and gRPC, built on `omle-runtime` |
 | [`omle-viewer`](https://github.com/openmle/omle-viewer)   | Python + TypeScript | Interactive DAG viewer for Jupyter and the browser |
 | [`omle.js`](https://github.com/openmle/omle.js)           | TypeScript | Browser/Node loader, validator, and execution engine |
 
@@ -168,6 +168,11 @@ Provided by [`omle-convert`](https://github.com/openmle/omle-convert):
 | LightGBM | Available | Sklearn wrappers, native `Booster`, and `.txt` files |
 | CatBoost | Available | Sklearn wrappers and `.cbm` / `.json` files |
 | PMML | Planned | Round-trip fidelity for the compliance audience |
+
+## Reference
+
+- **[Specification](https://github.com/openmle/omle/blob/main/spec/README.md)** — proto schema, registries, versioning
+- **[Operator and function reference](https://github.com/openmle/omle/blob/main/docs/README.md)** — every ML model family, feature operator and expression primitive, generated from the registries
 
 ## Contributing
 
