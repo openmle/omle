@@ -7,7 +7,7 @@ from typing import Optional
 
 # Import body types lazily to avoid circular issues
 from . import bodies as _bodies
-from ._util import enum_from_dict, ints_from_dict, obj_to_dict
+from ._util import enum_from_dict, ints_from_dict, obj_to_dict, unwrap_list
 from .domain import ValueDomain
 from .enums import MeasureLevel, OutputRole
 from .expression import Expression
@@ -169,10 +169,10 @@ class Attribute:
             s=d.get("s"),
             b=d.get("b"),
             ints=ints_from_dict(d["ints"]) if "ints" in d else None,
-            float32s=list(d["float32s"]) if "float32s" in d else None,
-            float64s=list(d["float64s"]) if "float64s" in d else None,
-            strings=list(d["strings"]) if "strings" in d else None,
-            bools=list(d["bools"]) if "bools" in d else None,
+            float32s=list(unwrap_list(d["float32s"])) if "float32s" in d else None,
+            float64s=list(unwrap_list(d["float64s"])) if "float64s" in d else None,
+            strings=list(unwrap_list(d["strings"])) if "strings" in d else None,
+            bools=list(unwrap_list(d["bools"])) if "bools" in d else None,
             tensor_ref=TensorRef.from_dict(d["tensor_ref"]) if "tensor_ref" in d else None,
             tensor=Tensor.from_dict(d["tensor"]) if "tensor" in d else None,
             sparse=SparseTensor.from_dict(d["sparse"]) if "sparse" in d else None,

@@ -69,6 +69,18 @@ for fw in model.metadata.source_frameworks:
 for node in model.nodes:
     print(node.name, f"{node.domain}.{node.op}")
 
+# Score it — scikit-learn's calling convention (requires omle-runtime)
+y_pred = model.predict(X_test)         # (n_samples,)
+proba = model.predict_proba(X_test)    # (n_samples, n_classes)
+
+# Those two cache a runtime model; after editing the document, drop the handle
+model.invalidate_runtime()
+
+# to_runtime() always builds fresh and caches nothing — hold it to score
+# repeatedly (immutable and thread-safe)
+runtime = model.to_runtime(n_threads=4)
+y_pred = runtime.predict(X_test)
+
 # Round-trip to JSON for diffing or hand-editing
 omle.save(model, "model.json")
 ```
@@ -76,13 +88,18 @@ omle.save(model, "model.json")
 Converting a trained model requires `omle-convert`:
 
 ```python
-from omle import export_omle
+from omle import export_omle, to_omle
 
 # scikit-learn, XGBoost, LightGBM, CatBoost — pass the fitted model
 export_omle(sklearn_pipeline, "model.omle", X=X_test)
 
 # Spark ML — pass a fitted PipelineModel; dataset supplies verification and sample rows
 export_omle(pipeline_model, "spark_model.omle", dataset=train_df)
+
+# to_omle returns the OMLEModel instead of writing a file — inspect, edit or
+# score it in memory
+model = to_omle(sklearn_pipeline, X=X_test)
+y_pred = model.predict(X_test)
 ```
 
 ## Command-Line Interface
@@ -115,7 +132,6 @@ omle convert model.cbm       output.omle   # CatBoost native
 # Input CSV: one sample per line, comma-separated floats, no header.
 # Predictions are written to the output file; stdout reports what was scored.
 omle predict model.omle features.csv predictions.csv
-omle predict model.omle                            # model metadata only
 ```
 
 `omle convert` and `omle predict` forward all arguments to `omle-convert` and
