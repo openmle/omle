@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from ._util import obj_to_dict
 from .function import DefineFunction
@@ -13,6 +13,9 @@ from .node import Node
 from .schema import ModelSchema
 from .tensor import TensorEntry
 from .verification import ModelVerification, RuntimeWarmup, SampleInputSet
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    import omle_runtime
 
 
 @dataclass
@@ -89,6 +92,96 @@ class OMLEModel:
             for out in node.outputs:
                 names.append(out.name)
         return names
+
+    # ── Runtime interop ───────────────────────────────────────────────────────
+
+    def to_runtime(
+        self,
+        *,
+        n_threads: int = 1,
+        min_parallel_rows: int = 64,
+    ) -> "omle_runtime.Model":
+        """Build a new :class:`omle_runtime.Model` from this document.
+
+        Always builds; nothing is cached or reused, so the handle reflects the
+        document exactly as it stands right now. That costs one protobuf
+        serialization plus a native load — roughly 1.5 ms for a small model and
+        160 ms for one carrying a couple of thousand tensors.
+
+        Hold on to the result to score repeatedly. The returned model is
+        immutable and thread-safe, and it does not track later edits to this
+        document; call this again to pick those up.
+
+        Requires the optional runtime: ``pip install omle-runtime``.
+        """
+        try:
+            import omle_runtime
+        except ImportError as exc:  # pragma: no cover - depends on the env
+            raise ImportError(
+                "omle_runtime is required to score a model.\n"
+                "Install it with:  pip install omle-runtime"
+            ) from exc
+
+        from ..io import to_proto_bytes
+
+        return omle_runtime.Model.load_bytes(
+            to_proto_bytes(self),
+            n_threads=n_threads,
+            min_parallel_rows=min_parallel_rows,
+        )
+
+    def _runtime_for_predict(self) -> "omle_runtime.Model":
+        """The handle backing :meth:`predict` — built once, then reused.
+
+        Only the prediction shortcuts share this. :meth:`to_runtime` always
+        builds fresh, so a caller who wants a handle tracking the current
+        document gets one without having to know about this cache.
+        """
+        runtime = getattr(self, "_runtime", None)
+        if runtime is None:
+            runtime = self.to_runtime()
+            self._runtime = runtime
+        return runtime
+
+    def invalidate_runtime(self) -> None:
+        """Drop the handle cached for :meth:`predict` / :meth:`predict_proba`.
+
+        Call this after editing the document. A nested edit such as
+        ``model.nodes[0].tree.values[3] = 0.5`` never reaches this object, so
+        staleness cannot be detected here — declaring it is the caller's job.
+        """
+        self._runtime = None
+
+    # noqa N803: X is scikit-learn's parameter name for the feature matrix.
+    # Renaming it would break the convention these methods exist to follow,
+    # and callers who pass X= by keyword.
+    def predict(self, X: Any) -> Any:  # noqa: N803
+        """Batch prediction, with scikit-learn's calling convention.
+
+        Builds a runtime model on first use and reuses it, so edits made
+        afterwards need :meth:`invalidate_runtime`. For explicit control over
+        that lifetime, use :meth:`to_runtime` and call it directly.
+        """
+        return self._runtime_for_predict().predict(X)
+
+    # noqa N803: see predict above.
+    def predict_proba(self, X: Any) -> Any:  # noqa: N803
+        """Per-class probabilities, with scikit-learn's calling convention.
+
+        Shares the cached handle — and the caveat — described on :meth:`predict`.
+        """
+        return self._runtime_for_predict().predict_proba(X)
+
+    # ── pickling ──────────────────────────────────────────────────────────────
+
+    def __getstate__(self) -> dict:
+        """Leave the cached runtime handle out of pickles and copies.
+
+        ``omle_runtime.Model`` pickles by carrying its serialized bytes, so
+        keeping it would roughly double the payload and make ``copy.deepcopy``
+        silently rebuild a native model.
+        """
+        return {k: v for k, v in vars(self).items() if not k.startswith("_")}
 
     def _repr_html_(self) -> str:
         try:

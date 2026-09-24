@@ -25,9 +25,18 @@ def _to_dict_value(v: Any) -> Any:
 
 
 def obj_to_dict(obj: Any) -> dict[str, Any]:
-    """Convert a dataclass instance to a dict, omitting None and empty-list fields."""
+    """Convert a dataclass instance to a dict, omitting None and empty-list fields.
+
+    Iterates ``vars(obj)`` rather than ``dataclasses.fields(obj)``, so any
+    attribute set outside the declared fields would otherwise land in the
+    output. Underscore-prefixed names are therefore skipped: they are internal
+    state, never part of the document. OMLEModel caches a runtime handle that
+    way, and it is neither serializable nor meaningful outside the process.
+    """
     result: dict[str, Any] = {}
     for field_name, field_val in vars(obj).items():
+        if field_name.startswith("_"):
+            continue
         if field_val is None:
             continue
         if isinstance(field_val, list) and len(field_val) == 0:
@@ -59,6 +68,19 @@ def bytes_from_dict(value: Any) -> bytes | None:
         return value
     return base64.b64decode(value)
 
+def unwrap_list(value: Any) -> Any:
+    """Unwrap a proto list-wrapper message to a plain list.
+
+    Repeated payloads inside a ``oneof`` are wrapped in single-field messages
+    (``Int64List``, ``StringList`` and friends), so ``MessageToDict`` renders
+    them as ``{"values": [...]}`` rather than a bare list. Hand-written JSON
+    usually carries the bare list, so both shapes have to be accepted.
+    """
+    if isinstance(value, dict):
+        return value.get("values", [])
+    return value
+
+
 def ints_from_dict(value: Any) -> list[int]:
     """Return a list of ints from a JSON-decoded repeated int64 field.
 
@@ -67,6 +89,7 @@ def ints_from_dict(value: Any) -> list[int]:
     rather than ``[-1, 2]``. Coerce here so the IR always holds ints and can be
     re-serialized.
     """
+    value = unwrap_list(value)
     if not value:
         return []
     return [int(v) for v in value]
