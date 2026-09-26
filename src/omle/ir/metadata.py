@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
+from .._format import FORMAT_VERSION
 from ._util import obj_to_dict
 
 
@@ -32,7 +33,7 @@ class SourceFramework:
 class ModelMetadata:
     """Descriptive metadata for the model artifact."""
 
-    format_version: str = "0.1.0"
+    format_version: str = FORMAT_VERSION
     name: str = ""
     version: str = ""
     timestamp: str = ""
@@ -49,7 +50,7 @@ class ModelMetadata:
     @classmethod
     def from_dict(cls, d: dict) -> "ModelMetadata":
         return cls(
-            format_version=d.get("format_version", "0.1.0"),
+            format_version=d.get("format_version", FORMAT_VERSION),
             name=d.get("name", ""),
             version=d.get("version", ""),
             timestamp=d.get("timestamp", ""),

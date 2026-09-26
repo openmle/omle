@@ -33,6 +33,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
+from ._format import FORMAT_VERSION, is_supported_format, parse_format_version
 from .ir.enums import OutputRole, TargetKind
 from .ir.expression import Apply, Expression
 from .ir.function import DefineFunction
@@ -54,6 +55,11 @@ class ValidationError:
 @dataclass
 class ValidationResult:
     errors: list[ValidationError] = field(default_factory=list)
+    # Advisories that do not make the model invalid. A schema version this
+    # library does not implement is the motivating case: the document may be
+    # perfectly good, and whether this consumer can execute it is settled at
+    # load time by the model's own verification cases, not here.
+    warnings: list[ValidationError] = field(default_factory=list)
 
     @property
     def is_valid(self) -> bool:
@@ -62,10 +68,14 @@ class ValidationResult:
     def error(self, path: str, msg: str) -> None:
         self.errors.append(ValidationError(path, msg))
 
+    def warning(self, path: str, msg: str) -> None:
+        self.warnings.append(ValidationError(path, msg))
+
     def __str__(self) -> str:
-        if self.is_valid:
-            return "Valid"
         lines = [f"  {e}" for e in self.errors]
+        lines += [f"  warning: {w}" for w in self.warnings]
+        if self.is_valid:
+            return "Valid" if not self.warnings else "Valid\n" + "\n".join(lines)
         return "Validation failed:\n" + "\n".join(lines)
 
 
@@ -123,8 +133,29 @@ class ModelValidator:
     # ── metadata ──────────────────────────────────────────────────────────────
 
     def _check_metadata(self, model: OMLEModel, r: ValidationResult) -> None:
-        if not model.metadata.format_version:
+        fv = model.metadata.format_version
+        if not fv:
             r.error("metadata.format_version", "format_version must not be empty")
+        elif parse_format_version(fv) is None:
+            r.error("metadata.format_version",
+                    f"format_version {fv!r} is not a MAJOR.MINOR.PATCH version")
+        elif not is_supported_format(fv) and not model.verification:
+            # An advisory, not an error, and only when the model carries nothing
+            # that could settle the question. A model with verification cases
+            # states what its producer computed; a runtime that reproduces those
+            # outputs has shown it executes the model correctly, whatever schema
+            # version the document declares. That check belongs at load time,
+            # so a static validator with no way to run it stays quiet.
+            #
+            # Without verification cases the version is the only evidence there
+            # is, and a mismatch is worth saying out loud: unknown fields are
+            # dropped silently, so a newer schema can change what an existing
+            # node means and the only symptom is different numbers.
+            r.warning("metadata.format_version",
+                      f"format_version {fv} is not implemented by this library "
+                      f"({FORMAT_VERSION}), and the model carries no "
+                      f"verification cases to confirm a consumer reads it "
+                      f"correctly")
 
     # ── inputs ────────────────────────────────────────────────────────────────
 

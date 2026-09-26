@@ -9,7 +9,6 @@ Quick start::
     # Build a model
     model = OMLEModel(
         metadata=ModelMetadata(
-            format_version="0.1.0",
             name="my_model",
             producer="my_tool",
             source_frameworks=[SourceFramework(name="scikit-learn")],
@@ -200,7 +199,14 @@ try:
 except ImportError:  # pragma: no cover - source checkout without a build
     __version__ = "0.0.0+unknown"
 
+# The schema version, and the rule for deciding whether a model's declared
+# version is one this library can read. Separate from __version__, which is
+# this package's release and belongs in ModelMetadata.producer_version.
+from ._format import FORMAT_VERSION, is_supported_format  # noqa: E402
+
 __all__ = [
+    # versioning
+    "FORMAT_VERSION", "is_supported_format",
     # enums
     "DataType", "MeasureLevel", "OutputRole", "PostTransform",
     "MissingValuePolicy", "InvalidValuePolicy", "OutlierValuePolicy",

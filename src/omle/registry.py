@@ -260,10 +260,46 @@ def load_function_registry(path: Optional[Path] = None) -> FunctionRegistry:
     return _parse_function_registry(_merge_registry_data("functions"))
 
 
+def _raw_registry_data(kind: str) -> dict:
+    """The registry JSON as stored, bundled copy first, merged source second.
+
+    Same resolution order as the loaders above, but without parsing into
+    OperatorDef/FunctionDef — namespace versions live on the namespace entries,
+    which those structures drop.
+    """
+    bundled = _BUNDLED_REGISTRY / f"{kind}.json"
+    if bundled.exists():
+        with open(bundled, encoding="utf-8") as f:
+            return json.load(f)
+    return _merge_registry_data(kind)
+
+
+def namespace_versions() -> dict[str, str]:
+    """Map every registry namespace to its declared version, e.g. omle.core → 0.1.
+
+    This is the source of truth for the version a producer records in a model's
+    ``operator_imports``. Operator sets are versioned per namespace and move
+    independently of both the schema version (``omle.FORMAT_VERSION``) and this
+    package's release version, so a converter that hardcodes the numbers drifts
+    the first time a namespace is bumped.
+    """
+    global _namespace_versions
+    if _namespace_versions is None:
+        out: dict[str, str] = {}
+        for kind in ("operators", "functions"):
+            for ns in _raw_registry_data(kind).get("namespaces", []):
+                name, ver = ns.get("name"), ns.get("version")
+                if name and ver:
+                    out[name] = str(ver)
+        _namespace_versions = out
+    return dict(_namespace_versions)
+
+
 # ── Cached singletons ─────────────────────────────────────────────────────────
 
 _operator_registry: Optional[OperatorRegistry] = None
 _function_registry: Optional[FunctionRegistry] = None
+_namespace_versions: Optional[dict[str, str]] = None
 
 
 def get_operator_registry() -> OperatorRegistry:

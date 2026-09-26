@@ -250,15 +250,45 @@ message ModelMetadata {
   // schema version targeted by the model document, in MAJOR.MINOR.PATCH
   // form.
   //
-  // Consumers must reject models whose MAJOR version they do not support.
-  // Within a supported MAJOR version, a consumer may accept models with
-  // newer MINOR or PATCH versions only if it can safely ignore unknown
-  // fields and still preserve required semantics; otherwise it must reject
-  // the model.
+  // A consumer "implements" a version when it implements that MAJOR, and —
+  // while the format is pre-1.0 — that MINOR as well, because 0.x MINOR
+  // bumps may still change existing semantics. From 1.0 onward a consumer
+  // implementing a MAJOR may read newer MINOR and PATCH documents of that
+  // MAJOR, provided it can ignore unknown fields and still preserve the
+  // semantics it does understand.
   //
-  // PATCH changes should be backward-compatible clarifications or fixes,
-  // while MINOR may add new optional fields, messages, enum values,
-  // operators, or functions without breaking existing valid models.
+  // Compatibility is decided by evidence first, and by this field only when
+  // no evidence is available:
+  //
+  //   1. This field states what a producer targeted. It is a declaration,
+  //      not proof: a consumer may implement the declared version and still
+  //      read the document wrongly, and may read a document correctly whose
+  //      version it does not implement.
+  //
+  //   2. When a model carries verification cases (see ModelVerification) and
+  //      a consumer executes them and every comparison passes, the consumer
+  //      has demonstrated that it reproduces this model's recorded outputs.
+  //      It must not then refuse the model on the strength of format_version
+  //      alone, whatever version the document declares.
+  //
+  //   3. When a model carries no verification cases, or a consumer does not
+  //      execute them, this field is the only evidence there is. A consumer
+  //      that does not implement the declared version must say so — whether
+  //      it refuses the model or proceeds is its own choice, but it must not
+  //      proceed silently. Unknown fields are dropped without complaint, so
+  //      a newer schema can change what an existing node means and the only
+  //      symptom is different numbers.
+  //
+  //   4. When verification fails on a model declaring a version the consumer
+  //      does not implement, the version difference should be reported as a
+  //      probable cause. It usually is.
+  //
+  // PATCH changes are backward-compatible clarifications or fixes. MINOR may
+  // add optional fields, messages and enum values without invalidating
+  // existing documents. Adding an operator or a standard function does NOT
+  // require a MINOR bump here: operator and function sets are versioned
+  // independently, per namespace, and a model records the versions it needs
+  // in operator_imports and function_imports (see NamespaceImport).
   //
   // The format is currently pre-1.0; MINOR bumps may still include breaking
   // changes until v1 is released.
