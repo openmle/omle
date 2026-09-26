@@ -40,9 +40,11 @@ pip install omle
 # With individual components
 pip install "omle[convert]"   # converters (scikit-learn, Spark ML, XGBoost, LightGBM, CatBoost)
 pip install "omle[runtime]"   # C++ inference runtime
+pip install "omle[server]"    # Open Inference Protocol server (REST + gRPC)
+pip install "omle[spark]"     # Spark ML transformer for PySpark
 pip install "omle[viewer]"    # Jupyter / browser DAG viewer
 
-# Everything
+# Everything except the server, which has narrower platform coverage
 pip install "omle[all]"
 ```
 
@@ -117,8 +119,10 @@ omle inspect model.omle --section nodes
 omle inspect model.omle --section metadata
 omle inspect model.omle --json
 
-# Open the interactive DAG viewer in a browser (requires omle-viewer)
+# Open the interactive DAG viewer in a browser (requires omle-viewer).
+# The file is optional — omit it to open on the drop target.
 omle view model.omle
+omle view
 
 # Convert a model to OMLE format (requires omle-convert).
 # The source framework is auto-detected from the file contents or extension.

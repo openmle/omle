@@ -556,7 +556,9 @@ def _cmd_view(args: argparse.Namespace) -> int:
         )
         return 2
 
-    sys.argv = ["omle-viewer", args.file]
+    # Forward the file only when given; omle-viewer with no argument opens on
+    # its drop target.
+    sys.argv = ["omle-viewer"] + ([args.file] if args.file else [])
     _viewer_main()
     return 0
 
@@ -617,8 +619,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Open an OMLE model in the interactive DAG viewer (requires omle-viewer)",
         description="Open an OMLE model file in the default web browser using the interactive DAG viewer.",
     )
-    p_view.add_argument("file", metavar="FILE",
-                        help="Path to the model file (.json or .omle)")
+    p_view.add_argument("file", metavar="FILE", nargs="?",
+                        help="Path to the model file (.json or .omle). "
+                             "Omit to open the viewer empty and drop a file in.")
 
     # ── inspect ──────────────────────────────────────────────────────────────
     p_ins = sub.add_parser(

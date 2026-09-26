@@ -22,7 +22,7 @@ keywords = [
     "protobuf", "pmml", "onnx", "scikit-learn", "xgboost", "lightgbm",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
@@ -59,12 +59,26 @@ convert = [
 runtime = [
     "omle-runtime",
 ]
+# Deliberately not in [all]; install it explicitly as omle[server].
+# omle-server publishes wheels only for macosx_11_0_arm64,
+# manylinux_2_28_x86_64 and win_amd64 -- no linux-aarch64, which every other
+# component covers. Inside [all] that gap turns into a source build of the
+# C++ server (gRPC, Drogon, OpenSSL) on any uncovered platform, so a plain
+# `pip install omle[all]` would fail there rather than skip one component.
+server = [
+    "omle-server",
+]
+spark = [
+    "omle-spark",
+]
 viewer = [
     "omle-viewer",
 ]
+# Everything that has a wheel everywhere. See [server] for the exclusion.
 all = [
     "omle-convert",
     "omle-runtime",
+    "omle-spark",
     "omle-viewer",
 ]
 dev = [
