@@ -1,0 +1,1049 @@
+{
+  "name": "omle.core",
+  "version": "0.1",
+  "description": "Core graph operators for OMLE v0.1.",
+  "operators": [
+    {
+      "name": "Identity",
+      "since": "0.1",
+      "category": "core",
+      "kind": "generic",
+      "summary": "Pass input through unchanged.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(x)",
+          "shape_rule": "same_shape(x)",
+          "measure_level_rule": "same_measure_level(x)"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: identity/pass-through nodes in preprocessing pipelines; sklearn FunctionTransformer with func=None or identity-like functions; Spark SQLTransformer SELECT pass-through expressions; PMML identity DerivedField patterns.",
+        "Coverage notes: Identity preserves dtype, shape, measure level, and values exactly. It is useful for explicit wiring, naming, or schema-preserving graph normalization.",
+        "Lowering notes: Converters may emit Identity when a source step is semantically a no-op but an explicit node is helpful for preserving pipeline structure, output names, or debugging visibility."
+      ]
+    },
+    {
+      "name": "Composite",
+      "since": "0.1",
+      "category": "structural",
+      "kind": "structured",
+      "body_type": "composite",
+      "summary": "Structured subgraph node with local scope and published inputs and outputs.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": false,
+          "variadic": true,
+          "kinds": [
+            "tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "derived_from_body",
+          "shape_rule": "derived_from_body",
+          "measure_level_rule": "derived_from_body"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [
+        "Executable content is defined by body.composite.",
+        "Composite input resolution follows composite input alias and local scope rules.",
+        "Composite output resolution follows composite output alias and published output rules.",
+        "The number, type, shape, and measure level of outputs are derived from the composite body."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: nested pipelines, column transformers, model chains, or reusable subgraphs from source frameworks when represented as an embedded OMLE subgraph.",
+        "Coverage notes: Composite represents structured subgraph execution with local scope, explicit input resolution, and published outputs. It is not a primitive mathematical operation.",
+        "Lowering notes: Converters should use Composite when preserving a nested source structure improves readability or when a source step naturally lowers to multiple OMLE nodes with local intermediate names."
+      ]
+    },
+    {
+      "name": "Cast",
+      "since": "0.1",
+      "category": "core",
+      "kind": "generic",
+      "summary": "Cast a tensor to a target dtype.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(attr:output_dtype)",
+          "shape_rule": "same_shape(x)",
+          "measure_level_rule": "same_measure_level(x)"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: dtype conversion steps such as numpy astype, Spark SQL CAST expressions, PMML type conversions, and explicit framework converter casts.",
+        "Coverage notes: Cast changes dtype while preserving shape and measure level. It does not imply semantic recoding, category lookup, scaling, or parsing of free-form strings beyond the declared dtype conversion semantics.",
+        "Lowering notes: Converters should insert Cast when source framework behavior requires a concrete dtype for downstream operators or output compatibility. Avoid using Cast to encode categorical mapping; use feature encoders instead."
+      ]
+    },
+    {
+      "name": "Concat",
+      "since": "0.1",
+      "category": "core",
+      "kind": "generic",
+      "summary": "Concatenate inputs along the last dimension.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type_as_all_inputs",
+          "shape_rule": "concat_last_dim(inputs)",
+          "measure_level_rule": "derived_from_input_and_operator"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [
+        "All inputs must have the same leading row dimension N.",
+        "All inputs must be compatible on all dimensions except the last.",
+        "All inputs must have the same dtype."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn ColumnTransformer / FeatureUnion output concatenation; Spark VectorAssembler-style feature assembly; PMML field concatenation patterns after independent transformations.",
+        "Coverage notes: Concat joins tensors along the last dimension and requires compatible leading dimensions and dtype. It is primarily used to assemble feature matrices or combine aligned model outputs.",
+        "Lowering notes: Converters should use Concat to materialize an ordered feature vector from multiple columns or transformed blocks. If source inputs have mixed dtypes, insert explicit casts or encode columns before concatenation."
+      ]
+    },
+    {
+      "name": "Split",
+      "since": "0.1",
+      "category": "core",
+      "kind": "generic",
+      "summary": "Split a tensor along the last dimension into multiple outputs.",
+      "description": "Produces one output per entry in sections. The single variadic output template is instantiated once for each produced output, in order.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "variadic": true,
+          "type_rule": "same_type(x)",
+          "shape_rule": "split_last_dim(x,sections)",
+          "measure_level_rule": "same_measure_level(x)"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "sections",
+          "type": "ints",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "The number of Node.outputs must equal len(sections).",
+        "Each section must be positive.",
+        "The sum of sections must equal the last dimension of x."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: fixed column slicing from assembled vectors, vector-to-columns expansion, and decomposition of multi-output tensors into named outputs.",
+        "Coverage notes: Split partitions the last dimension according to fixed sections and produces one output per section. It is static and does not perform data-dependent splitting.",
+        "Lowering notes: Converters may use Split to expose named outputs from a matrix or vector, or to reverse an earlier Concat when downstream operators require separate inputs."
+      ]
+    },
+    {
+      "name": "Reshape",
+      "since": "0.1",
+      "category": "core",
+      "kind": "generic",
+      "summary": "Reshape a tensor while preserving the leading row dimension.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(x)",
+          "shape_rule": "reshape_preserve_rows(x,new_shape)",
+          "measure_level_rule": "same_measure_level(x)"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "new_shape",
+          "type": "ints",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "The leading row dimension N must be preserved.",
+        "The product of trailing dimensions in new_shape must equal the product of trailing dimensions of x."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: numpy reshape, TensorFlow/ONNX-style reshape patterns when preserving batch dimension, and framework-specific vector/matrix reshaping used in preprocessing.",
+        "Coverage notes: Reshape changes trailing dimensions while preserving the leading row dimension N and total trailing element count. It does not reorder values beyond standard row-major reshape semantics.",
+        "Lowering notes: Converters should use Reshape only when the source reshape has static shape and preserves batch rows. Dynamic reshape or data-dependent shape inference should be reported as unsupported or handled by an extension."
+      ]
+    },
+    {
+      "name": "TakeSlots",
+      "since": "0.1",
+      "category": "core",
+      "kind": "generic",
+      "summary": "Select, reorder, and optionally duplicate slots from the expanded flat slot space of one or more inputs.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(xs)",
+          "shape_rule": "matrix(n_rows=N,n_cols=num_selected_slots)",
+          "measure_level_rule": "derived_from_input_and_operator"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "indices",
+          "type": "ints",
+          "required": false
+        },
+        {
+          "name": "names",
+          "type": "strings",
+          "required": false
+        }
+      ],
+      "validation_rules": [
+        "Exactly one of indices or names must be present.",
+        "If indices is present, indices refer to the expanded flat slot space derived from the input list.",
+        "If names is present, names refer to visible slot names in the expanded flat slot space derived from the input list.",
+        "Names must resolve uniquely within the visible scope.",
+        "Selection may reorder and duplicate slots.",
+        "All selected slots must have the same dtype."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn column selection patterns, ColumnTransformer column subsets, Spark VectorSlicer, PMML field selection, and schema-based feature reordering.",
+        "Coverage notes: TakeSlots selects, reorders, or duplicates slots from a homogeneous expanded flat slot space. It is intended for positional or name-based feature selection after schema expansion.",
+        "Lowering notes: Use indices for positional source representations and names when schema-level feature names improve fidelity or readability. Use TakeSlots only when selected slots share a compatible dtype."
+      ]
+    },
+    {
+      "name": "Derive",
+      "since": "0.1",
+      "category": "expression",
+      "kind": "generic",
+      "summary": "Produce derived column or tensor values from an embedded Expression.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": false,
+          "variadic": true,
+          "kinds": [
+            "column",
+            "matrix",
+            "numeric_tensor",
+            "string_tensor",
+            "boolean_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "derived_from_expression(expr)",
+          "shape_rule": "derived_from_expression(expr)",
+          "measure_level_rule": "derived_from_expression(expr)"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "expr",
+          "type": "expression",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "The expression must resolve only names visible in the node input namespace.",
+        "Rank-1 inputs are interpreted as [N] columns.",
+        "Rank-2 inputs are interpreted as [N, F] matrices whose trailing dimension contains logical columns.",
+        "Tensor inputs may be referenced by name, but the expression must have a statically inferable output shape.",
+        "The expression result must preserve the leading batch dimension N.",
+        "The expression result must be a [N] column or a tensor whose first dimension is N.",
+        "If inputs is empty, expr must be self-contained and must not reference any input columns or tensors.",
+        "Derive must not perform reductions across rows, dynamic shape changes, row filtering, joins, aggregation, or arbitrary user-defined function execution."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: PMML Apply / DefineFunction expressions used in DerivedField or OutputField; Spark ML SQLTransformer projection expressions; sklearn FunctionTransformer only when the callable can be lowered to deterministic element-wise, row-wise, or statically shaped tensor expressions.",
+        "Coverage notes: Derive is intended for portable expression evaluation over fixed input columns, matrices, or tensors. It can represent element-wise tensor transforms such as log(X), X + c, fixed-column arithmetic such as X[:, 0] + X[:, 1], and statically shaped derived outputs. It does not represent arbitrary Python callables, Spark SQL UDFs, row filtering, aggregation, joins, or data-dependent output shape changes.",
+        "Lowering notes: Converters may lower simple sklearn FunctionTransformer patterns such as numpy ufuncs, arithmetic expressions, fixed-column combinations, and shape-preserving matrix transforms. Matrix-level learned transforms or arbitrary numpy/Python code should be lowered to dedicated OMLE operators, custom extension operators, or reported as unsupported."
+      ]
+    },
+    {
+      "name": "Select",
+      "since": "0.1",
+      "category": "core",
+      "kind": "generic",
+      "summary": "Select one of multiple candidate values using a row-wise selector.",
+      "inputs": [
+        {
+          "name": "selector",
+          "required": true,
+          "kinds": [
+            "integer_tensor"
+          ],
+          "shape_constraints": [
+            "rank = 1"
+          ]
+        },
+        {
+          "name": "candidates",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(candidates)",
+          "shape_rule": "same_shape_as_candidates",
+          "measure_level_rule": "derived_from_input_and_operator"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [
+        "All candidate inputs must have the same shape and dtype.",
+        "selector must be a column of integer indices with shape [N].",
+        "Each selector value must be in [0, num_candidates).",
+        "Selection is row-wise and does not imply conditional graph execution."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: row-wise choice expressions such as numpy choose/take_along_axis patterns, SQL CASE lowered to candidate selection, and framework condition-selection constructs after selector computation.",
+        "Coverage notes: Select chooses among precomputed candidate tensors row by row using integer selector values. It does not imply conditional graph execution; all candidate inputs are computed before selection.",
+        "Lowering notes: Converters should use Select when a source expression can be represented as selection among a fixed set of aligned candidates. Data-dependent control flow or branch execution should not be represented by Select."
+      ]
+    },
+    {
+      "name": "Clip",
+      "since": "0.1",
+      "category": "core",
+      "kind": "generic",
+      "summary": "Clamp numeric values to a range.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "numeric_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(x)",
+          "shape_rule": "same_shape(x)",
+          "measure_level_rule": "same_measure_level(x)"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "min",
+          "type": "float",
+          "required": false
+        },
+        {
+          "name": "max",
+          "type": "float",
+          "required": false
+        }
+      ],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: numpy clip, sklearn preprocessing clipping patterns, Spark SQL greatest/least combinations, and PMML outlier treatment as extreme values when expressible as clamping.",
+        "Coverage notes: Clip clamps numeric tensor values to optional lower and upper bounds while preserving shape and dtype. At least one bound should normally be provided by converters.",
+        "Lowering notes: Converters may use Clip for preprocessing ranges, PMML extreme-value outlier handling, or post-processing bounds. Missing-value handling should be represented separately, not by Clip."
+      ]
+    },
+    {
+      "name": "SparseToDense",
+      "since": "0.1",
+      "category": "core",
+      "kind": "generic",
+      "summary": "Convert a sparse tensor to its dense tensor form.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "sparse_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "dense_value_type(x)",
+          "shape_rule": "same_dense_shape(x)",
+          "measure_level_rule": "same_measure_level(x)"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [
+        "Input x must represent a sparse tensor with a declared dense shape [N, D] or more generally [N, ...]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sparse matrix densification in scipy/sklearn, Spark vector-to-dense conversions, and runtime fallback when an operator requires dense input.",
+        "Coverage notes: SparseToDense materializes the dense tensor represented by a sparse input while preserving declared dense shape and value dtype.",
+        "Lowering notes: Use SparseToDense when downstream OMLE operators do not support sparse input directly. Converters should be aware that densification can increase memory usage, especially for wide feature spaces."
+      ]
+    },
+    {
+      "name": "DenseToSparse",
+      "since": "0.1",
+      "category": "core",
+      "kind": "generic",
+      "summary": "Convert a dense tensor to its sparse tensor form.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "dense_to_sparse_value_type(x)",
+          "shape_rule": "sparse_shape_from_dense(x)",
+          "measure_level_rule": "same_measure_level(x)"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [
+        "Input x must have shape [N, D] or more generally [N, ...].",
+        "The sparse output must preserve the declared dense shape of x.",
+        "Only non-default values are materialized in the sparse representation.",
+        "DenseToSparse uses the dtype default value as the implicit fill value for omitted entries."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: dense-to-sparse conversions in scipy/sklearn or Spark sparse vector construction.",
+        "Coverage notes: DenseToSparse materializes only non-default values and preserves the dense logical shape. The implicit fill value is the dtype default.",
+        "Lowering notes: Use DenseToSparse when downstream operators can exploit sparse representation. Avoid adding it unless it improves compatibility or runtime efficiency."
+      ]
+    },
+    {
+      "name": "ArgMax",
+      "since": "0.1",
+      "category": "selection",
+      "kind": "generic",
+      "summary": "Return the index of the maximum value in each row of a numeric matrix.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": [
+            "numeric_tensor"
+          ],
+          "shape_constraints": [
+            "rank = 2"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "int64",
+          "shape_rule": "column",
+          "measure_level_rule": "ORDINAL"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [
+        "Input x must have shape [N, K] with K >= 1.",
+        "For each row, ArgMax returns the index of the maximum value.",
+        "If multiple positions share the maximum value, the smallest index is returned."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: numpy argmax, sklearn decision/probability decoding, Spark probability-to-prediction decoding, PMML max-score class selection.",
+        "Coverage notes: ArgMax returns the smallest index of the maximum value for each row of a numeric matrix. It returns indices, not class labels.",
+        "Lowering notes: Converters may use ArgMax to decode multiclass score, probability, or vote matrices. Add a label mapping step when the final prediction must be class labels rather than numeric indices."
+      ]
+    },
+    {
+      "name": "SelectByPrimarySecondaryScore",
+      "since": "0.1",
+      "category": "selection",
+      "kind": "generic",
+      "summary": "Select one class index per row using primary scores first and secondary scores as tie-break.",
+      "inputs": [
+        {
+          "name": "primary_scores",
+          "required": true,
+          "kinds": [
+            "numeric_tensor"
+          ],
+          "shape_constraints": [
+            "rank = 2"
+          ]
+        },
+        {
+          "name": "secondary_scores",
+          "required": true,
+          "kinds": [
+            "numeric_tensor"
+          ],
+          "shape_constraints": [
+            "rank = 2"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "int64",
+          "shape_rule": "column",
+          "measure_level_rule": "ORDINAL"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [
+        "primary_scores and secondary_scores must have the same shape [N, C].",
+        "For each row, select the class with maximal primary score.",
+        "If multiple classes are tied on primary score, select among them using maximal secondary score.",
+        "If multiple classes are still tied, return the smallest class index."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn OneVsOneClassifier prediction decoding that uses vote counts with confidence sums as a tie-break.",
+        "Coverage notes: This operator selects a class index using primary scores first and secondary scores only for ties, with deterministic smallest-index tie-breaking.",
+        "Lowering notes: Use this operator when a source OvO classifier requires both vote aggregation and confidence-based tie-breaking. For simple max-score decoding, use ArgMax instead."
+      ]
+    },
+    {
+      "name": "Sum",
+      "since": "0.1",
+      "category": "reduction",
+      "kind": "generic",
+      "summary": "Elementwise sum of aligned tensors.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "numeric_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type_as_all_inputs",
+          "shape_rule": "same_shape_as_all_inputs",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: element-wise tensor addition, PMML/Spark/sklearn ensemble score summation, and additive model score aggregation.",
+        "Coverage notes: Sum performs element-wise summation over aligned numeric tensors with identical shape and dtype.",
+        "Lowering notes: Converters may use Sum for additive ensembles, score accumulation, or combining independently computed numeric outputs. Use WeightedSum when source estimators have explicit weights."
+      ]
+    },
+    {
+      "name": "Average",
+      "since": "0.1",
+      "category": "reduction",
+      "kind": "generic",
+      "summary": "Elementwise arithmetic mean of aligned tensors.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "numeric_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(inputs)",
+          "shape_rule": "same_shape_as_all_inputs",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: element-wise mean aggregation, unweighted ensemble score averaging, and probability averaging when inputs are already aligned probabilities.",
+        "Coverage notes: Average computes the arithmetic mean of aligned numeric tensors and promotes output to a floating dtype.",
+        "Lowering notes: Converters may use Average for unweighted score or prediction aggregation. For class-probability ensemble voting, prefer SoftVote because it documents probability alignment semantics."
+      ]
+    },
+    {
+      "name": "WeightedSum",
+      "since": "0.1",
+      "category": "reduction",
+      "kind": "generic",
+      "summary": "Elementwise weighted sum of aligned tensors.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "numeric_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(inputs)",
+          "shape_rule": "same_shape_as_all_inputs",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "weights",
+          "type": "floats",
+          "required": true
+        }
+      ],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: weighted additive ensemble aggregation, linear combination of model scores, and PMML/Spark/sklearn weighted score accumulation patterns.",
+        "Coverage notes: WeightedSum computes the element-wise sum of each input multiplied by its corresponding weight. It does not normalize by the sum of weights.",
+        "Lowering notes: Use WeightedSum when source semantics require raw weighted accumulation. Use WeightedAverage when the weighted result must be normalized by total weight."
+      ]
+    },
+    {
+      "name": "WeightedAverage",
+      "since": "0.1",
+      "category": "reduction",
+      "kind": "generic",
+      "summary": "Elementwise weighted average of aligned tensors.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "numeric_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(inputs)",
+          "shape_rule": "same_shape_as_all_inputs",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "weights",
+          "type": "floats",
+          "required": true
+        }
+      ],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: weighted ensemble averaging, weighted probability averaging, and weighted mean score aggregation.",
+        "Coverage notes: WeightedAverage computes the element-wise weighted mean of aligned numeric tensors and promotes output to a floating dtype.",
+        "Lowering notes: Converters may use WeightedAverage for generic weighted numeric aggregation. For weighted soft-voting probabilities, prefer SoftVote when probability-specific validation and role metadata are desired."
+      ]
+    },
+    {
+      "name": "WeightedMedian",
+      "since": "0.1",
+      "category": "reduction",
+      "kind": "generic",
+      "summary": "Elementwise weighted median across aligned numeric inputs.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "numeric_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(inputs)",
+          "shape_rule": "same_shape_as_all_inputs",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "weights",
+          "type": "floats",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "All inputs must have the same shape.",
+        "All inputs must be numeric.",
+        "weights must have the same length as the number of inputs.",
+        "All weights must be non-negative.",
+        "At least one weight must be positive.",
+        "For each output position, the weighted median is the smallest value whose cumulative sorted weight is at least half of the total weight."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn AdaBoostRegressor prediction aggregation.",
+        "Coverage notes: WeightedMedian computes the element-wise weighted median across aligned numeric inputs using non-negative estimator weights.",
+        "Lowering notes: Use WeightedMedian to reproduce sklearn AdaBoostRegressor prediction semantics. Preserve estimator order and weights exactly to ensure deterministic tie behavior."
+      ]
+    },
+    {
+      "name": "Min",
+      "since": "0.1",
+      "category": "reduction",
+      "kind": "generic",
+      "summary": "Elementwise minimum across aligned tensors.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "numeric_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type_as_all_inputs",
+          "shape_rule": "same_shape_as_all_inputs",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: element-wise minimum operations such as numpy minimum/reduce, Spark least, PMML min-style Apply functions, and clipping lower-bound helper patterns.",
+        "Coverage notes: Min computes the element-wise minimum across aligned numeric tensors with identical shape and dtype.",
+        "Lowering notes: Converters may use Min for expression lowering, bounds logic, or ensemble/model post-processing when the source operation is an element-wise minimum."
+      ]
+    },
+    {
+      "name": "Max",
+      "since": "0.1",
+      "category": "reduction",
+      "kind": "generic",
+      "summary": "Elementwise maximum across aligned tensors.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "numeric_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type_as_all_inputs",
+          "shape_rule": "same_shape_as_all_inputs",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: element-wise maximum operations such as numpy maximum/reduce, Spark greatest, PMML max-style Apply functions, and clipping upper-bound helper patterns.",
+        "Coverage notes: Max computes the element-wise maximum across aligned numeric tensors with identical shape and dtype.",
+        "Lowering notes: Converters may use Max for expression lowering, bounds logic, or ensemble/model post-processing when the source operation is an element-wise maximum."
+      ]
+    },
+    {
+      "name": "Median",
+      "since": "0.1",
+      "category": "reduction",
+      "kind": "generic",
+      "summary": "Elementwise median across aligned tensors.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "numeric_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(inputs)",
+          "shape_rule": "same_shape_as_all_inputs",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: element-wise median aggregation across model outputs or numeric tensors.",
+        "Coverage notes: Median computes the unweighted element-wise median across aligned numeric inputs and promotes output to a floating dtype.",
+        "Lowering notes: Converters should use Median only when source inference semantics explicitly require median aggregation. Use WeightedMedian when estimator weights affect the median."
+      ]
+    },
+    {
+      "name": "MajorityVote",
+      "since": "0.1",
+      "category": "voting",
+      "kind": "generic",
+      "summary": "Majority vote over aligned class-label columns.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "column"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type_as_all_inputs",
+          "shape_rule": "column",
+          "measure_level_rule": "NOMINAL",
+          "role_rule": "PREDICTION"
+        }
+      ],
+      "attributes": [],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: sklearn VotingClassifier with voting='hard'; PMML MiningModel segmentation with majority-vote-style classification; generic hard-voting ensembles.",
+        "Coverage notes: MajorityVote is prediction-only. It selects the class receiving the largest number of votes and does not produce probability outputs.",
+        "Lowering notes: Use MajorityVote for unweighted hard class-label voting. Use WeightedMajorityVote for weighted hard voting, SoftVote for probability averaging, and SAMMEVote for SAMME-specific AdaBoost multiclass voting."
+      ]
+    },
+    {
+      "name": "WeightedMajorityVote",
+      "since": "0.1",
+      "category": "voting",
+      "kind": "generic",
+      "summary": "Weighted majority vote over aligned class-label columns.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "column"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type_as_all_inputs",
+          "shape_rule": "column",
+          "measure_level_rule": "NOMINAL",
+          "role_rule": "PREDICTION"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "weights",
+          "type": "floats",
+          "required": true
+        }
+      ],
+      "validation_rules": [],
+      "converter_notes": [
+        "Equivalent source operators: sklearn VotingClassifier with voting='hard' and weights; generic weighted hard-voting ensembles.",
+        "Coverage notes: WeightedMajorityVote is prediction-only. It sums estimator weights by predicted class and selects the class with the largest total weight. Weighted vote totals are not probability estimates.",
+        "Lowering notes: Use WeightedMajorityVote for generic weighted hard voting. Use SoftVote for probability averaging and SAMMEVote for SAMME AdaBoost multiclass semantics."
+      ]
+    },
+    {
+      "name": "SAMMEVote",
+      "since": "0.1",
+      "category": "voting",
+      "kind": "generic",
+      "summary": "Aggregate classifier predictions using the SAMME multiclass AdaBoost voting rule.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "column"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prediction",
+          "type_rule": "same_type_as_all_inputs",
+          "shape_rule": "column",
+          "measure_level_rule": "NOMINAL",
+          "role_rule": "PREDICTION"
+        },
+        {
+          "name": "probability",
+          "type_rule": "float32_or_float64",
+          "shape_rule": "matrix(n_rows=N,n_cols=num_classes)",
+          "measure_level_rule": "CONTINUOUS",
+          "domain_rule": "probability_0_1",
+          "role_rule": "PROBABILITY"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "weights",
+          "type": "floats",
+          "required": true
+        },
+        {
+          "name": "classes",
+          "type": "tensor_like",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must be a column with shape [N].",
+        "All inputs in xs must have the same dtype and represent predictions over the same class space.",
+        "weights must have the same length as the number of inputs.",
+        "classes must provide the ordered class labels with shape [K], where K is the number of classes.",
+        "K must be >= 2.",
+        "For each row and each class, accumulate the sum of estimator weights for estimators whose predicted label equals that class.",
+        "Convert accumulated class votes to class probabilities using softmax(votes / (K - 1)).",
+        "The prediction output is the class label with maximum probability for each row.",
+        "If multiple classes are tied after probability computation, the smallest class index in classes is selected."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn AdaBoostClassifier with algorithm='SAMME' for multiclass classification.",
+        "Coverage notes: SAMMEVote represents SAMME-specific multiclass voting semantics. It accumulates estimator weights by predicted class, computes probability with softmax(votes / (K - 1)), and returns the maximum-probability class. It is not equivalent to generic weighted majority voting.",
+        "Lowering notes: Use SAMMEVote when converting SAMME-style AdaBoost ensembles whose base estimators output class predictions and whose estimator weights are accumulated by class. Use WeightedMajorityVote only for generic weighted hard voting."
+      ]
+    },
+    {
+      "name": "SoftVote",
+      "since": "0.1",
+      "category": "voting",
+      "kind": "generic",
+      "summary": "Average or row-normalize aligned probability tensors across models.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": [
+            "numeric_tensor"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(inputs)",
+          "shape_rule": "same_shape_as_all_inputs",
+          "measure_level_rule": "CONTINUOUS",
+          "domain_rule": "probability_0_1",
+          "role_rule": "PROBABILITY"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "weights",
+          "type": "floats",
+          "required": false
+        },
+        {
+          "name": "normalize_rows",
+          "type": "bool",
+          "required": false,
+          "default": false
+        }
+      ],
+      "validation_rules": [
+        "Input probability tensors must be class-aligned.",
+        "All inputs must have the same shape.",
+        "If weights is present, weights must have the same length as the number of inputs.",
+        "SoftVote first computes the weighted elementwise sum of input probability tensors, or the unweighted elementwise sum when weights is absent.",
+        "If normalize_rows is false, the weighted sum is divided by the sum of weights, or by the number of inputs when weights is absent.",
+        "If normalize_rows is true, each output row is divided by its own row sum after accumulation.",
+        "If normalize_rows is true, each row sum must be positive.",
+        "normalize_rows must only be used for single-label multiclass probability normalization, not for multilabel marginal probabilities."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn VotingClassifier with voting='soft'; probability-averaging ensemble patterns in PMML MiningModel segmentation; sklearn OneVsRestClassifier single-label multiclass probability normalization when normalize_rows=true.",
+        "Coverage notes: SoftVote combines aligned probability tensors. By default, it computes ordinary weighted or unweighted soft voting by dividing accumulated probabilities by the total estimator weight or input count. When normalize_rows=true, it normalizes each row of the accumulated output so the row sums to 1.",
+        "Lowering notes: Use normalize_rows=false for ordinary soft voting over already class-aligned probability distributions. Use normalize_rows=true for one-vs-rest multiclass probability assembly where independently produced class scores or probabilities must be normalized into a single multiclass probability distribution. Do not use normalize_rows=true for multilabel OneVsRestClassifier outputs, because multilabel probabilities are independent marginal probabilities and should not be forced to sum to 1."
+      ]
+    }
+  ]
+}

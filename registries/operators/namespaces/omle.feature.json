@@ -1,0 +1,1932 @@
+{
+  "name": "omle.feature",
+  "version": "0.1",
+  "description": "Feature preprocessing operators for OMLE v0.1.",
+  "operators": [
+    {
+      "name": "StandardScaler",
+      "since": "0.1",
+      "category": "scaling",
+      "kind": "generic",
+      "summary": "Standardize numeric inputs using fitted mean and scale values.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "promote_to_float(corresponding_input)",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "mean",
+          "type": "tensor_like",
+          "required": false,
+          "description": "Per-feature centering values. Omitted when the source transformer disabled centering (Spark withMean=false, sklearn with_mean=False); consumers then skip centering."
+        },
+        {
+          "name": "scale",
+          "type": "tensor_like",
+          "required": false,
+          "description": "Per-feature scaling values. Omitted when the source transformer disabled scaling (Spark withStd=false, sklearn with_std=False); consumers then skip scaling."
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "mean and scale, when present, must be numeric tensors compatible with F.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i].",
+        "Scaling is applied independently to each logical input column."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.StandardScaler; pyspark.ml.feature.StandardScaler.",
+        "Coverage notes: exact for fitted inference parameters mean and scale.",
+        "Lowering notes: multiple logical input columns may be supplied either as one matrix or as mixed column and matrix inputs.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "MinMaxScaler",
+      "since": "0.1",
+      "category": "scaling",
+      "kind": "generic",
+      "summary": "Rescale numeric inputs into a configured target range.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "promote_to_float(corresponding_input)",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "data_min",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "data_max",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "feature_range_min",
+          "type": "float",
+          "required": false,
+          "default": 0.0
+        },
+        {
+          "name": "feature_range_max",
+          "type": "float",
+          "required": false,
+          "default": 1.0
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "data_min and data_max must be numeric tensors compatible with F.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i].",
+        "Scaling is applied independently to each logical input column."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.MinMaxScaler; pyspark.ml.feature.MinMaxScaler.",
+        "Coverage notes: exact for fitted inference parameters data_min, data_max, and feature range.",
+        "Lowering notes: multiple logical input columns may be supplied either as one matrix or as mixed column and matrix inputs.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "RobustScaler",
+      "since": "0.1",
+      "category": "scaling",
+      "kind": "generic",
+      "summary": "Scale numeric inputs using fitted robust center and scale statistics.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "promote_to_float(corresponding_input)",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "center",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "scale",
+          "type": "tensor_like",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "center and scale must be numeric tensors compatible with F.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i].",
+        "Scaling is applied independently to each logical input column."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.RobustScaler.",
+        "Coverage notes: exact for fitted inference parameters center and scale.",
+        "Lowering notes: no direct built-in Spark ML, PMML, or category_encoders equivalent is assumed.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "MaxAbsScaler",
+      "since": "0.1",
+      "category": "scaling",
+      "kind": "generic",
+      "summary": "Scale numeric inputs by the fitted maximum absolute value per feature.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "promote_to_float(corresponding_input)",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "scale",
+          "type": "tensor_like",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "scale must be a numeric tensor compatible with F.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i].",
+        "Scaling is applied independently to each logical input column."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.MaxAbsScaler; pyspark.ml.feature.MaxAbsScaler.",
+        "Coverage notes: exact for fitted inference parameter scale.",
+        "Lowering notes: multiple logical input columns may be supplied either as one matrix or as mixed column and matrix inputs.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "Normalizer",
+      "since": "0.1",
+      "category": "scaling",
+      "kind": "generic",
+      "summary": "Normalize rows according to a selected norm over the combined logical feature space.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(xs)",
+          "shape_rule": "matrix(n_rows=N,n_cols=num_logical_input_columns)",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "norm",
+          "type": "string",
+          "required": false,
+          "default": "l2",
+          "enum_values": ["l1", "l2", "max"]
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "The operator first forms the flattened feature vector of width F for each row, then applies row normalization across that full vector.",
+        "The output matrix y has shape [N, F]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.Normalizer; pyspark.ml.feature.Normalizer.",
+        "Coverage notes: exact for row-wise normalization semantics.",
+        "Lowering notes: the operator flattens all logical input columns into one feature vector per row before applying the selected norm."
+      ]
+    },
+    {
+      "name": "PowerTransformer",
+      "since": "0.1",
+      "category": "scaling",
+      "kind": "generic",
+      "summary": "Apply a fitted power transform independently to numeric feature inputs.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "promote_to_float(corresponding_input)",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "method",
+          "type": "string",
+          "required": true,
+          "enum_values": ["box_cox", "yeo_johnson"]
+        },
+        {
+          "name": "lambdas",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "standardize",
+          "type": "bool",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "mean",
+          "type": "tensor_like",
+          "required": false
+        },
+        {
+          "name": "scale",
+          "type": "tensor_like",
+          "required": false
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "lambdas must provide a floating-point tensor compatible with F.",
+        "If standardize = true, mean and scale must both be present and compatible with F.",
+        "If standardize = false, mean and scale must be absent or ignored.",
+        "If method = 'box_cox', all input values must be strictly positive.",
+        "The power transform is applied feature-wise using the fitted lambda values.",
+        "If standardize = true, the transformed values are standardized using the fitted mean and scale.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.PowerTransformer.",
+        "Coverage notes: exact for fitted inference parameters of Box-Cox and Yeo-Johnson transforms.",
+        "Lowering notes: only fitted inference parameters are exported; training-time estimation details are not represented.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "QuantileTransformer",
+      "since": "0.1",
+      "category": "scaling",
+      "kind": "generic",
+      "summary": "Apply a fitted quantile-based transform independently to numeric feature inputs.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "promote_to_float(corresponding_input)",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "quantiles",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "references",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "output_distribution",
+          "type": "string",
+          "required": true,
+          "enum_values": ["uniform", "normal"]
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "quantiles must provide a floating-point tensor of shape [Q, F] or equivalent compatible form.",
+        "references must provide a floating-point tensor of shape [Q].",
+        "Q must be >= 2.",
+        "Each logical input column is transformed independently using the fitted quantile landmarks and references.",
+        "If output_distribution = 'uniform', the output is the interpolated cumulative probability.",
+        "If output_distribution = 'normal', the output is the inverse-normal transform of the interpolated cumulative probability.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.QuantileTransformer.",
+        "Coverage notes: exact for fitted inference parameters quantiles, references, and output distribution.",
+        "Lowering notes: only fitted quantile landmarks and references are exported; training-time sampling details are not represented.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "Bucketizer",
+      "since": "0.1",
+      "category": "binning",
+      "kind": "generic",
+      "summary": "Map numeric inputs to ordinal bucket indices feature-wise.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "int64",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "ORDINAL"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "boundaries",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "boundary_offsets",
+          "type": "tensor_like",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "boundaries must provide a rank-1 tensor containing concatenated boundary lists across logical input columns.",
+        "boundary_offsets must provide an integer tensor of shape [F + 1].",
+        "For logical input column j, its boundary list is boundaries[boundary_offsets[j] : boundary_offsets[j + 1]].",
+        "Bucketization is applied independently to each logical input column.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: pyspark.ml.feature.Bucketizer; sklearn.preprocessing.KBinsDiscretizer with ordinal encoding.",
+        "Coverage notes: exact for bucket-index style inference.",
+        "Lowering notes: Supports one matrix with multiple columns, multiple single-column inputs, or mixed input forms.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "Discretizer",
+      "since": "0.1",
+      "category": "binning",
+      "kind": "generic",
+      "summary": "Map numeric inputs to configured values according to interval bins.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "same_type(attr:output_dtype)",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "derived_from_input_and_operator"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "bin_left",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "bin_right",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "left_closed",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "right_closed",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "bin_values",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "bin_offsets",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "default_value",
+          "type": "scalar",
+          "required": false
+        },
+        {
+          "name": "map_missing_to",
+          "type": "scalar",
+          "required": false
+        },
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "bin_left, bin_right, left_closed, right_closed, and bin_values must provide concatenated interval definitions across logical input columns.",
+        "bin_offsets must provide an integer tensor of shape [F + 1].",
+        "For logical input column j, its interval definitions are sliced by bin_offsets[j] : bin_offsets[j + 1].",
+        "Within each logical input column, intervals should be non-overlapping.",
+        "For each input value, the first matching interval for that logical input column determines the output.",
+        "If no interval matches, default_value is used when present; otherwise the result is missing.",
+        "If map_missing_to is present, missing input values map to that value.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: PMML Discretize; sklearn.preprocessing.KBinsDiscretizer only for partial interval-binning analogies.",
+        "Coverage notes: exact for interval-to-value lookup semantics, including default and missing mapping.",
+        "Lowering notes: Use Bucketizer instead when only ordinal bin indices are needed.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "NormContinuous",
+      "since": "0.1",
+      "category": "normalization",
+      "kind": "generic",
+      "summary": "Apply feature-wise piecewise linear normalization using ordered breakpoints.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "promote_to_float(corresponding_input)",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "orig_points",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "norm_points",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "point_offsets",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "outlier_treatment",
+          "type": "string",
+          "required": false,
+          "default": "as_is",
+          "enum_values": ["as_is", "as_missing_values", "as_extreme_values"]
+        },
+        {
+          "name": "map_missing_to",
+          "type": "scalar",
+          "required": false
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "orig_points and norm_points must provide rank-1 tensors containing concatenated breakpoint definitions across all logical input columns.",
+        "point_offsets must provide an integer tensor of shape [F + 1].",
+        "For logical input column j, its breakpoint pairs are defined by orig_points[point_offsets[j] : point_offsets[j + 1]] and norm_points[point_offsets[j] : point_offsets[j + 1]].",
+        "orig_points and norm_points must have the same total length.",
+        "Each logical input column must have at least two breakpoint pairs.",
+        "Within each logical input column, orig_points must be strictly increasing.",
+        "If outlier_treatment = 'as_is', values below the first orig_point extrapolate linearly using the first segment and values above the last orig_point extrapolate linearly using the last segment.",
+        "If outlier_treatment = 'as_extreme_values', values below the first orig_point map to the first norm_point and values above the last orig_point map to the last norm_point.",
+        "If outlier_treatment = 'as_missing_values', values outside the breakpoint range are treated as missing values.",
+        "If an input value is missing and map_missing_to is present, the output is map_missing_to.",
+        "If an input value is missing and map_missing_to is absent, the output is missing.",
+        "If outlier_treatment = 'as_missing_values' and an outlier is encountered, map_missing_to is used when present; otherwise the output is missing.",
+        "For an input value between two adjacent orig_points, output is computed by linear interpolation between the corresponding norm_points.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: PMML NormContinuous.",
+        "Coverage notes: exact for PMML piecewise linear interpolation semantics, including missing-value and outlier-treatment behavior.",
+        "Lowering notes: Supports one matrix with multiple columns, multiple single-column inputs, or mixed input forms.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "SplineTransformer",
+      "since": "0.1",
+      "category": "basis_expansion",
+      "kind": "generic",
+      "summary": "Expand numeric features into B-spline basis features.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(xs)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "knots",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "degree",
+          "type": "int",
+          "required": true
+        },
+        {
+          "name": "include_bias",
+          "type": "bool",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "extrapolation",
+          "type": "string",
+          "required": false,
+          "default": "constant",
+          "enum_values": ["error", "constant", "linear", "continue", "periodic"]
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "knots must provide a floating-point tensor compatible with the fitted spline basis definition.",
+        "degree must be >= 0.",
+        "The spline basis is evaluated feature-wise using the fitted knot vectors.",
+        "Output feature count is determined by the fitted knots, degree, number of logical input columns, and include_bias.",
+        "The extrapolation attribute controls behavior outside the fitted knot range."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.SplineTransformer.",
+        "Coverage notes: exact for fitted spline basis inference semantics.",
+        "Lowering notes: The operator preserves sklearn-compatible basis ordering."
+      ]
+    },
+    {
+      "name": "OneHotEncoder",
+      "since": "0.1",
+      "category": "encoding",
+      "kind": "generic",
+      "summary": "Map one or more categorical input columns to binary indicator matrices, one per input column.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "string_tensor", "integer_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "same_type(attr:output_dtype)",
+          "shape_rule": "derived_from_corresponding_input_and_operator",
+          "measure_level_rule": "FLAG",
+          "domain_rule": "binary_0_1"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "categories",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "category_offsets",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": false,
+          "default": "FLOAT32",
+          "enum_values": ["FLOAT32", "FLOAT64", "INT32", "INT64"]
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the number of inputs in xs.",
+        "categories must provide a rank-1 tensor containing the concatenated category vocabulary across all inputs.",
+        "category_offsets must provide an integer tensor of shape [F + 1].",
+        "For input column i, its category list is categories[category_offsets[i] : category_offsets[i + 1]].",
+        "Each input is encoded independently into one binary indicator matrix ys[i] of shape [N, K_i] where K_i = category_offsets[i+1] - category_offsets[i]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.OneHotEncoder; pyspark.ml.feature.OneHotEncoder; category_encoders.OneHotEncoder.",
+        "Coverage notes: exact for fitted one-hot category lookup; each input column produces its own output matrix.",
+        "Lowering notes: For single-column encoding, category_offsets typically has shape [2]. Use tensor_ref for large shared vocabularies and inline tensor for small local vocabularies."
+      ]
+    },
+    {
+      "name": "OrdinalEncoder",
+      "since": "0.1",
+      "category": "encoding",
+      "kind": "generic",
+      "summary": "Map one or more categorical input columns to ordinal indices or precomputed numeric lookup values.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "string_tensor", "integer_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "int64_if_attr_absent_else_same_type(encoded_values)",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "ORDINAL_if_attr_absent_else_CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "categories",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "category_offsets",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "encoded_values",
+          "type": "tensor_like",
+          "required": false
+        },
+        {
+          "name": "default_values",
+          "type": "tensor_like",
+          "required": false
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "categories must provide a rank-1 tensor containing the concatenated category vocabulary across all logical input columns.",
+        "category_offsets must provide an integer tensor of shape [F + 1].",
+        "For logical input column j, its category list is categories[category_offsets[j] : category_offsets[j + 1]].",
+        "If encoded_values is absent, each logical input column is encoded independently using the zero-based local category index within that column.",
+        "If encoded_values is present, encoded_values must provide a numeric tensor aligned one-to-one with categories and having the same total logical length as categories.",
+        "If encoded_values is present, each known category maps to its corresponding entry in encoded_values instead of its ordinal index.",
+        "If default_values is present, default_values must provide a numeric tensor of shape [F] giving the per-feature fallback for unseen categories.",
+        "If default_values is present, encoded_values must also be present.",
+        "If encoded_values is present and an unseen category is encountered for logical input column f, default_values[f] is used when default_values is present; otherwise the result is missing or follows the runtime unknown-category policy.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.OrdinalEncoder; pyspark.ml.feature.StringIndexer as the closest Spark ML analogue; category_encoders.OrdinalEncoder.",
+        "Coverage notes: exact for fitted category lookup tables; Spark StringIndexer ordering policies may require converter-specific preprocessing.",
+        "Lowering notes: Supports one matrix with multiple columns, multiple single-column inputs, or mixed input forms. Without encoded_values, this matches standard ordinal encoding semantics. With encoded_values, this operator performs per-category numeric lookup using the same category tables.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "LabelEncoder",
+      "since": "0.1",
+      "category": "encoding",
+      "kind": "generic",
+      "summary": "Map one or more nominal label inputs to integer identifiers.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "string_tensor", "integer_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "int64",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "NOMINAL"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "labels",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "label_offsets",
+          "type": "tensor_like",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "labels must provide a rank-1 tensor containing the concatenated label vocabulary across all logical input columns.",
+        "label_offsets must provide an integer tensor of shape [F + 1].",
+        "For logical input column j, its label list is labels[label_offsets[j] : label_offsets[j + 1]].",
+        "Each logical input column is encoded independently to one nominal integer-ID logical output column.",
+        "Encoded integer IDs are nominal identifiers and do not imply semantic order.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.LabelEncoder for single-target style usage; pyspark.ml.feature.StringIndexer as the closest Spark ML analogue.",
+        "Coverage notes: exact for nominal label-to-id lookup semantics across logical input columns.",
+        "Lowering notes: Supports one matrix with multiple columns, multiple single-column inputs, or mixed input forms. Unlike OrdinalEncoder, the encoded integer IDs are nominal rather than ordinal.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "NormDiscrete",
+      "since": "0.1",
+      "category": "encoding",
+      "kind": "generic",
+      "summary": "Map a column to a binary indicator for equality with one target value.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": ["column"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(attr:output_dtype)",
+          "shape_rule": "same_shape(x)",
+          "measure_level_rule": "FLAG",
+          "domain_rule": "binary_0_1"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "value",
+          "type": "scalar",
+          "required": true
+        },
+        {
+          "name": "map_missing_to",
+          "type": "scalar",
+          "required": false
+        },
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": false,
+          "default": "INT64",
+          "enum_values": ["INT32", "INT64", "FLOAT32", "FLOAT64"]
+        }
+      ],
+      "validation_rules": [
+        "If x equals value, output is 1; otherwise output is 0.",
+        "If map_missing_to is present, missing input values map to that value instead of normal equality semantics.",
+        "map_missing_to must be compatible with output_dtype."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: PMML NormDiscrete.",
+        "Coverage notes: exact for single-value indicator semantics, including missing-value override.",
+        "Lowering notes: no direct built-in sklearn, Spark ML, or category_encoders equivalent is assumed."
+      ]
+    },
+    {
+      "name": "MapValues",
+      "since": "0.1",
+      "category": "lookup",
+      "kind": "generic",
+      "summary": "Map input values to output values by exact-match lookup.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": ["column"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(attr:output_dtype)",
+          "shape_rule": "same_shape(x)",
+          "measure_level_rule": "derived_from_input_and_operator"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "keys",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "values",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "default_value",
+          "type": "scalar",
+          "required": false
+        },
+        {
+          "name": "map_missing_to",
+          "type": "scalar",
+          "required": false
+        },
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "keys and values must provide tensors with the same leading dimension K.",
+        "keys must be rank-1.",
+        "values must be rank-1.",
+        "Lookup uses exact equality matching.",
+        "If no key matches, default_value is used when present; otherwise the result is missing.",
+        "If map_missing_to is present, missing input values map to that value."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: PMML MapValues.",
+        "Coverage notes: exact for single-key dictionary-style lookup semantics.",
+        "Lowering notes: This v0.1 form supports single-key lookup. Multi-key lookup may be added in a future version."
+      ]
+    },
+    {
+      "name": "TargetEncoder",
+      "since": "0.1",
+      "category": "encoding",
+      "kind": "generic",
+      "summary": "Map one or more categorical input columns to precomputed target-encoding values.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "string_tensor", "integer_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(encoded_values)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "categories",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "category_offsets",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "encoded_values",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "default_values",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "target_kind",
+          "type": "string",
+          "required": true,
+          "enum_values": ["regression", "binary", "multiclass"]
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "categories must provide a rank-1 tensor containing the concatenated category vocabulary across all logical input columns.",
+        "category_offsets must provide an integer tensor of shape [F + 1].",
+        "For logical input column j, its category list is categories[category_offsets[j] : category_offsets[j + 1]].",
+        "If target_kind is 'regression' or 'binary', encoded_values must provide a floating-point tensor of shape [C_total] and default_values must provide a floating-point tensor of shape [F].",
+        "If target_kind is 'multiclass', encoded_values must provide a floating-point tensor of shape [C_total, K] and default_values must provide a floating-point tensor of shape [F, K].",
+        "default_values must have dtype compatible with encoded_values.",
+        "Lookup uses exact equality matching independently for each logical input column.",
+        "If an input value matches a category for its logical input column, output uses the corresponding encoded value.",
+        "If an input value does not match any category or is missing, output uses the default_values for that logical input column.",
+        "If target_kind is 'regression' or 'binary', the output matrix has shape [N, F].",
+        "If target_kind is 'multiclass', the output has K columns per logical input column, concatenated in logical input column order."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.TargetEncoder; category_encoders.TargetEncoder.",
+        "Coverage notes: exact for exported fitted lookup tables for regression, binary, and multiclass target encoding.",
+        "Lowering notes: Supports one matrix with multiple columns, multiple single-column inputs, or mixed input forms. Export the fitted target-encoding values directly; do not export training-time smoothing or cross-fitting logic. For multiclass target encoding, each logical input column expands to one block of K output columns."
+      ]
+    },
+    {
+      "name": "LabelBinarizer",
+      "since": "0.1",
+      "category": "encoding",
+      "kind": "generic",
+      "summary": "Binarize labels in a one-vs-all fashion.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": ["column"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(attr:output_dtype)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "FLAG"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "classes",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "neg_label",
+          "type": "int",
+          "required": false,
+          "default": 0
+        },
+        {
+          "name": "pos_label",
+          "type": "int",
+          "required": false,
+          "default": 1
+        },
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": false,
+          "default": "INT64",
+          "enum_values": ["INT32", "INT64", "FLOAT32", "FLOAT64"]
+        }
+      ],
+      "validation_rules": [
+        "classes must provide a tensor of shape [K].",
+        "K must be >= 2.",
+        "If K = 2, output shape is [N] and y[i] = pos_label when x[i] equals classes[1], else neg_label.",
+        "If K > 2, output shape is [N, K] and y[i, j] = pos_label when x[i] equals classes[j], else neg_label.",
+        "If x[i] does not match any class, all outputs for that row are neg_label."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.LabelBinarizer.",
+        "Coverage notes: exact for one-vs-all label binarization semantics, including the binary special case.",
+        "Lowering notes: This operator is target-oriented and should not be replaced by OneHotEncoder."
+      ]
+    },
+    {
+      "name": "MultiLabelBinarizer",
+      "since": "0.1",
+      "category": "encoding",
+      "kind": "generic",
+      "summary": "Convert per-row label sets to a binary indicator matrix.",
+      "inputs": [
+        {
+          "name": "x",
+          "required": true,
+          "kinds": ["label_set_sequence"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(attr:output_dtype)",
+          "shape_rule": "matrix(n_rows=N,n_cols=K)",
+          "measure_level_rule": "FLAG",
+          "domain_rule": "binary_0_1"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "classes",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": false,
+          "default": "INT64",
+          "enum_values": ["INT32", "INT64", "FLOAT32", "FLOAT64"]
+        }
+      ],
+      "validation_rules": [
+        "classes must provide a tensor of shape [K].",
+        "K must be >= 1.",
+        "For each row i and class j, y[i, j] = 1 if classes[j] is present in x[i], else 0.",
+        "Duplicate labels within the same input row do not increase the output value beyond 1.",
+        "Labels not present in classes are ignored."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.MultiLabelBinarizer.",
+        "Coverage notes: exact for per-row label-set to binary-indicator expansion.",
+        "Lowering notes: This operator requires a collection-valued input kind such as label_set_sequence."
+      ]
+    },
+    {
+      "name": "PolynomialFeatures",
+      "since": "0.1",
+      "category": "basis_expansion",
+      "kind": "generic",
+      "summary": "Generate polynomial and interaction features from the flattened numeric feature space.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(xs)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "min_degree",
+          "type": "int",
+          "required": false,
+          "default": 0
+        },
+        {
+          "name": "max_degree",
+          "type": "int",
+          "required": true
+        },
+        {
+          "name": "interaction_only",
+          "type": "bool",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "include_bias",
+          "type": "bool",
+          "required": false,
+          "default": true
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "The operator first forms the flattened feature space from all logical input columns, then generates polynomial and interaction features over that full space.",
+        "min_degree must be >= 0.",
+        "max_degree must be >= 0.",
+        "max_degree must be >= min_degree.",
+        "If include_bias = false, the constant bias term is omitted.",
+        "If interaction_only = true, only interaction terms with distinct logical input columns are produced.",
+        "Output feature count and ordering follow the fitted polynomial expansion definition."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.PolynomialFeatures.",
+        "Coverage notes: exact for fitted polynomial and interaction feature generation semantics.",
+        "Lowering notes: The operator preserves sklearn-compatible output ordering."
+      ]
+    },
+    {
+      "name": "TruncatedSVD",
+      "since": "0.1",
+      "category": "dimensionality_reduction",
+      "kind": "generic",
+      "summary": "Project the flattened numeric feature space to a lower-dimensional latent space using fitted truncated singular vectors.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(xs)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "components",
+          "type": "tensor_like",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "The operator first forms the flattened feature space of width F, then applies the fitted linear projection.",
+        "components must provide a floating-point tensor compatible with F."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.decomposition.TruncatedSVD.",
+        "Coverage notes: exact for fitted linear latent-space projection inference.",
+        "Lowering notes: Only fitted inference parameters are exported; training-time solver details are not represented."
+      ]
+    },
+    {
+      "name": "FastICA",
+      "since": "0.1",
+      "category": "dimensionality_reduction",
+      "kind": "generic",
+      "summary": "Project the flattened numeric feature space to independent components using a fitted ICA transform.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(xs)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "mean",
+          "type": "tensor_like",
+          "required": false
+        },
+        {
+          "name": "whitening",
+          "type": "tensor_like",
+          "required": false
+        },
+        {
+          "name": "components",
+          "type": "tensor_like",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "The operator first forms the flattened feature space of width F, then applies centering, optional whitening, and the fitted ICA projection.",
+        "components must provide a floating-point tensor compatible with F.",
+        "If mean is present, it must be compatible with F.",
+        "If whitening is present, it must be compatible with the fitted preprocessing step used before applying components."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.decomposition.FastICA.",
+        "Coverage notes: exact for fitted ICA transform inference.",
+        "Lowering notes: Converters should export the fitted transform in the exact form needed to reproduce sklearn-compatible output."
+      ]
+    },
+    {
+      "name": "FactorAnalysis",
+      "since": "0.1",
+      "category": "dimensionality_reduction",
+      "kind": "generic",
+      "summary": "Project the flattened numeric feature space to latent factors using a fitted factor analysis transform.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(xs)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "mean",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "components",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "noise_variance",
+          "type": "tensor_like",
+          "required": false
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "The operator first forms the flattened feature space of width F, then applies the fitted factor-analysis transform.",
+        "mean must provide a floating-point tensor compatible with F.",
+        "components must provide a floating-point tensor compatible with F.",
+        "If noise_variance is present, it must be compatible with F."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.decomposition.FactorAnalysis.",
+        "Coverage notes: exact for fitted factor-analysis transform inference.",
+        "Lowering notes: Converters should export the fitted parameters needed to reproduce sklearn-compatible transform output."
+      ]
+    },
+    {
+      "name": "KernelPCA",
+      "since": "0.1",
+      "category": "dimensionality_reduction",
+      "kind": "generic",
+      "summary": "Project the flattened numeric feature space to a lower-dimensional latent space using a fitted kernel PCA transform.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(xs)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "fit_samples",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "dual_components",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "kernel",
+          "type": "string",
+          "required": true,
+          "enum_values": ["linear", "poly", "rbf", "sigmoid", "cosine", "precomputed"]
+        },
+        {
+          "name": "gamma",
+          "type": "float",
+          "required": false
+        },
+        {
+          "name": "degree",
+          "type": "int",
+          "required": false
+        },
+        {
+          "name": "coef0",
+          "type": "float",
+          "required": false
+        },
+        {
+          "name": "kernel_center_row_mean",
+          "type": "tensor_like",
+          "required": false
+        },
+        {
+          "name": "kernel_center_all_mean",
+          "type": "tensor_like",
+          "required": false
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "The operator first forms the flattened feature space of width F, then applies the fitted kernel map and dual projection.",
+        "If kernel != 'precomputed', fit_samples must provide a floating-point tensor compatible with F.",
+        "dual_components must provide a floating-point tensor compatible with the fitted kernel basis.",
+        "If kernel = 'precomputed', the runtime input must represent precomputed kernel rows against the fitted samples.",
+        "If kernel centering statistics are present, they must be compatible with the fitted kernel centering procedure."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.decomposition.KernelPCA.",
+        "Coverage notes: exact for fitted kernel PCA transform inference.",
+        "Lowering notes: Only fitted inference parameters are exported; training-time eigensolver details are not represented."
+      ]
+    },
+    {
+      "name": "SparsePCA",
+      "since": "0.1",
+      "category": "dimensionality_reduction",
+      "kind": "generic",
+      "summary": "Project the flattened numeric feature space to sparse latent components using a fitted sparse PCA transform.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(xs)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "mean",
+          "type": "tensor_like",
+          "required": false
+        },
+        {
+          "name": "components",
+          "type": "tensor_like",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "The operator first forms the flattened feature space of width F, then applies the fitted sparse PCA transform.",
+        "components must provide a floating-point tensor compatible with F.",
+        "If mean is present, it must be compatible with F."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.decomposition.SparsePCA.",
+        "Coverage notes: exact for fitted sparse PCA transform inference.",
+        "Lowering notes: Converters should export the fitted transform parameters needed to reproduce sklearn-compatible output."
+      ]
+    },
+    {
+      "name": "NMF",
+      "since": "0.1",
+      "category": "dimensionality_reduction",
+      "kind": "generic",
+      "summary": "Project the flattened non-negative numeric feature space to a latent space using a fitted non-negative matrix factorization transform.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(xs)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "components",
+          "type": "tensor_like",
+          "required": true
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "The operator first forms the flattened feature space of width F, then applies the fitted NMF transform.",
+        "All input values must be non-negative.",
+        "components must provide a floating-point tensor compatible with F."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.decomposition.NMF.",
+        "Coverage notes: exact for fitted NMF transform inference.",
+        "Lowering notes: Only fitted inference parameters are exported; training-time factorization details are not represented."
+      ]
+    },
+    {
+      "name": "LatentDirichletAllocation",
+      "since": "0.1",
+      "category": "topic_modeling",
+      "kind": "generic",
+      "summary": "Project the flattened document-term feature space to document-topic features using a fitted latent Dirichlet allocation transform.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor", "sparse_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "promote_to_float(xs)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "components",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "doc_topic_prior",
+          "type": "float",
+          "required": false
+        },
+        {
+          "name": "topic_word_prior",
+          "type": "float",
+          "required": false
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "The operator first forms the flattened document-term feature space of width F, then applies the fitted LDA transform.",
+        "Input values must be non-negative document-term features.",
+        "components must provide a floating-point tensor compatible with F."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.decomposition.LatentDirichletAllocation.",
+        "Coverage notes: exact for fitted document-topic transform inference.",
+        "Lowering notes: This operator is intended for fitted transform semantics only; training-time variational learning details are not represented."
+      ]
+    },
+    {
+      "name": "Imputer",
+      "since": "0.1",
+      "category": "missing",
+      "kind": "generic",
+      "summary": "Replace missing values in one or more inputs with configured fitted fill values.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "same_type_as_corresponding_input",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "same_measure_level_as_corresponding_input"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "fill_value",
+          "type": "scalar",
+          "required": false
+        },
+        {
+          "name": "fill_tensor",
+          "type": "tensor_like",
+          "required": false
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Exactly one of fill_value or fill_tensor must be provided.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the dtype, shape, and measure level of xs[i].",
+        "If fill_value is present, it must be coercible to the dtype of every input to which it is applied.",
+        "If fill_tensor is present, it must provide fitted fill values compatible with the F logical feature slots contributed by xs.",
+        "Missing-value replacement is applied independently to each logical feature slot."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.impute.SimpleImputer for fixed fitted fill values; pyspark.ml.feature.Imputer for fitted mean or median numeric imputation.",
+        "Coverage notes: exact for runtime missing-value substitution using exported fill values.",
+        "Lowering notes: converters may lower framework-specific mean, median, most-frequent, or constant strategies into explicit fill_value or fill_tensor parameters.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "Binarizer",
+      "since": "0.1",
+      "category": "threshold",
+      "kind": "generic",
+      "summary": "Convert numeric inputs to binary indicator values using per-column thresholds.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "same_type(attr:output_dtype)",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "FLAG",
+          "domain_rule": "binary_0_1"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "thresholds",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": false,
+          "default": "INT64",
+          "enum_values": ["INT32", "INT64", "FLOAT32", "FLOAT64"]
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the number of inputs in xs.",
+        "thresholds must be a rank-1 tensor of shape [F], one threshold per input.",
+        "Binarization is applied independently to each input: xs[i] >= thresholds[i] → 1, else 0.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.preprocessing.Binarizer; pyspark.ml.feature.Binarizer.",
+        "Coverage notes: exact for threshold-based binary conversion semantics.",
+        "Lowering notes: For a single-column encoder, thresholds has shape [1]. Use the same value for all columns to replicate a uniform threshold.",
+        "Lowering notes: multiple inputs remain separate; ys[i] preserves the boundary and shape of xs[i]."
+      ]
+    },
+    {
+      "name": "MissingIndicator",
+      "since": "0.1",
+      "category": "missing",
+      "kind": "generic",
+      "summary": "Generate binary indicators for missing values across the logical feature space.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type_rule": "same_type(attr:output_dtype)",
+          "shape_rule": "derived_from_input_and_operator",
+          "measure_level_rule": "FLAG",
+          "domain_rule": "binary_0_1"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "features_mode",
+          "type": "string",
+          "required": false,
+          "default": "missing_only",
+          "enum_values": ["missing_only", "all"]
+        },
+        {
+          "name": "feature_indices",
+          "type": "tensor_like",
+          "required": false
+        },
+        {
+          "name": "error_on_new",
+          "type": "bool",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "output_dtype",
+          "type": "string",
+          "required": false,
+          "default": "INT64",
+          "enum_values": ["INT32", "INT64", "FLOAT32", "FLOAT64"]
+        }
+      ],
+      "validation_rules": [
+        "Each input in xs must have leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "If features_mode = 'all', output contains one indicator column per logical input column.",
+        "If features_mode = 'missing_only', feature_indices must provide an INT tensor listing the logical input columns that had missing values at fit time.",
+        "If features_mode = 'missing_only', output contains one indicator column for each logical input column listed in feature_indices, in that order.",
+        "If error_on_new = true and features_mode = 'missing_only', runtime must raise or signal an error when a logical input column not listed in feature_indices contains missing values.",
+        "If error_on_new = false and features_mode = 'missing_only', missing values in logical input columns not listed in feature_indices do not add new output columns.",
+        "Each output value is 1 when the corresponding logical input column is missing, else 0."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.impute.MissingIndicator.",
+        "Coverage notes: exact for fitted missing-indicator generation semantics.",
+        "Lowering notes: converters should resolve the fitted feature selection and export feature_indices explicitly when features_mode = 'missing_only'."
+      ]
+    },
+    {
+      "name": "KNNImputer",
+      "since": "0.1",
+      "category": "missing",
+      "kind": "generic",
+      "summary": "Impute missing numeric values using nearest neighbors from the fitted training data.",
+      "inputs": [
+        {
+          "name": "xs",
+          "required": true,
+          "variadic": true,
+          "kinds": ["column", "matrix", "numeric_tensor"],
+          "shape_constraints": ["rank in {1,2}"]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ys",
+          "variadic": true,
+          "type_rule": "promote_to_float(corresponding_input)",
+          "shape_rule": "same_shape_as_corresponding_input",
+          "measure_level_rule": "CONTINUOUS"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "train_features",
+          "type": "tensor_like",
+          "required": true
+        },
+        {
+          "name": "n_neighbors",
+          "type": "int",
+          "required": true
+        },
+        {
+          "name": "weights",
+          "type": "string",
+          "required": false,
+          "default": "uniform",
+          "enum_values": ["uniform", "distance"]
+        },
+        {
+          "name": "metric",
+          "type": "string",
+          "required": false,
+          "default": "nan_euclidean",
+          "enum_values": ["nan_euclidean"]
+        },
+        {
+          "name": "keep_empty_features",
+          "type": "bool",
+          "required": false,
+          "default": false
+        }
+      ],
+      "validation_rules": [
+        "At least one input must be present in xs.",
+        "All inputs in xs must have the same leading row dimension N.",
+        "Each rank-1 input contributes one logical input column.",
+        "Each rank-2 input contributes its trailing column dimension logical input columns in order.",
+        "Let F be the total number of logical input columns contributed by xs.",
+        "The operator forms the logical feature space of width F for neighbor-distance computation while preserving the original input boundaries in its outputs.",
+        "train_features must provide a numeric rank-2 tensor of shape [M, F].",
+        "n_neighbors must be >= 1 and <= M.",
+        "metric = 'nan_euclidean' computes distances using only jointly observed logical feature columns and ignores columns missing in either row.",
+        "Observed input values pass through unchanged.",
+        "For each missing logical feature value, neighbors are selected from training rows using the configured metric.",
+        "If weights = 'uniform', the imputed value is the arithmetic mean of the selected neighbor values that are observed for that logical feature column.",
+        "If weights = 'distance', the imputed value is the distance-weighted mean of the selected neighbor values that are observed for that logical feature column.",
+        "If no selected neighbor has an observed value for a missing logical feature column, the runtime behavior must follow the fitted sklearn-compatible policy represented by keep_empty_features.",
+        "If keep_empty_features = true, logical feature columns that are entirely missing in the fitted training data are retained in the output.",
+        "The number of outputs in ys must equal the number of inputs in xs.",
+        "Output ys[i] corresponds to input xs[i].",
+        "Each output ys[i] must preserve the shape of xs[i]."
+      ],
+      "converter_notes": [
+        "Equivalent source operators: sklearn.impute.KNNImputer.",
+        "Coverage notes: exact for fitted nearest-neighbor imputation semantics using exported training features.",
+        "Lowering notes: converters should export the fitted training feature matrix directly in train_features. Converters may still insert an explicit Concat node before KNNImputer, but it is not required.",
+        "Lowering notes: multiple inputs remain separate in the output even though all logical feature columns participate jointly in neighbor-distance computation."
+      ]
+    }
+  ]
+}

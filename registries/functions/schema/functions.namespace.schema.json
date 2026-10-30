@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "functions.namespace.schema.json",
+  "title": "OMLE Functions Namespace Schema",
+  "$ref": "functions.schema.json#/$defs/namespace"
+}

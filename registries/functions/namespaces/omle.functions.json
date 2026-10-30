@@ -1,0 +1,1085 @@
+{
+  "name": "omle.functions",
+  "version": "0.1",
+  "description": "Standard elementwise expression functions for OMLE v0.1.",
+  "functions": [
+    {
+      "name": "cast",
+      "since": "0.1",
+      "category": "conversion",
+      "summary": "Elementwise type conversion.",
+      "description": "Converts x elementwise to the requested target type.",
+      "arguments": [
+        { "name": "x", "kinds": ["any"] },
+        { "name": "target_type", "kinds": ["string"] }
+      ],
+      "returns": {
+        "type_rule": "target_type",
+        "measure_level_rule": "same_as(x)"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "target_type must name a valid OMLE scalar DataType.",
+        "Failed conversions yield null or runtime error according to profile; standard v0.1 should prefer null."
+      ]
+    },
+
+    {
+      "name": "add",
+      "since": "0.1",
+      "category": "arithmetic",
+      "summary": "Elementwise numeric addition.",
+      "description": "Returns the elementwise sum of x and y.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] },
+        { "name": "y", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "numeric_promotion(a,b)",
+        "measure_level_rule": "continuous_if_numeric(args)"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "sub",
+      "since": "0.1",
+      "category": "arithmetic",
+      "summary": "Elementwise numeric subtraction.",
+      "description": "Returns the elementwise difference x - y.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] },
+        { "name": "y", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "numeric_promotion(a,b)",
+        "measure_level_rule": "continuous_if_numeric(args)"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "mul",
+      "since": "0.1",
+      "category": "arithmetic",
+      "summary": "Elementwise numeric multiplication.",
+      "description": "Returns the elementwise product of x and y.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] },
+        { "name": "y", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "numeric_promotion(a,b)",
+        "measure_level_rule": "continuous_if_numeric(args)"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "div",
+      "since": "0.1",
+      "category": "arithmetic",
+      "summary": "Elementwise numeric division.",
+      "description": "Returns the elementwise quotient x / y.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] },
+        { "name": "y", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_division(x,y)",
+        "measure_level_rule": "continuous_if_numeric(args)"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "Division always produces a floating-point result, even for integer operands.",
+        "Division-by-zero behavior is runtime-defined unless constrained by profile."
+      ]
+    },
+    {
+      "name": "floordiv",
+      "since": "0.1",
+      "category": "arithmetic",
+      "summary": "Elementwise floor-style integer division.",
+      "description": "Returns the elementwise integer quotient of x divided by y using mathematical floor semantics.",
+      "arguments": [
+        { "name": "x", "kinds": ["integer"] },
+        { "name": "y", "kinds": ["integer"] }
+      ],
+      "returns": {
+        "type_rule": "numeric_promotion(a,b)",
+        "measure_level_rule": "continuous_if_numeric(args)"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "For negative operands, behavior follows mathematical floor division, not truncation toward zero.",
+        "Division-by-zero behavior is runtime-defined unless constrained by profile."
+      ]
+    },
+    {
+      "name": "mod",
+      "since": "0.1",
+      "category": "arithmetic",
+      "summary": "Elementwise remainder.",
+      "description": "Returns the elementwise remainder associated with floor-style integer division.",
+      "arguments": [
+        { "name": "x", "kinds": ["integer"] },
+        { "name": "y", "kinds": ["integer"] }
+      ],
+      "returns": {
+        "type_rule": "numeric_promotion(a,b)",
+        "measure_level_rule": "continuous_if_numeric(args)"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "v0.1 restricts mod to integer operands. Floating-point modulo may be added in a future version.",
+        "For negative operands, mod is defined consistently with floordiv."
+      ]
+    },
+    {
+      "name": "neg",
+      "since": "0.1",
+      "category": "arithmetic",
+      "summary": "Elementwise numeric negation.",
+      "description": "Returns the elementwise negation of x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "same_as(x)",
+        "measure_level_rule": "continuous_if_numeric(args)"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "abs",
+      "since": "0.1",
+      "category": "arithmetic",
+      "summary": "Elementwise absolute value.",
+      "description": "Returns the elementwise absolute value of x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "same_as(x)",
+        "measure_level_rule": "continuous_if_numeric(args)"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "sum",
+      "since": "0.1",
+      "category": "arithmetic",
+      "summary": "Elementwise sum across multiple numeric arguments.",
+      "description": "Returns the elementwise sum of all provided numeric arguments.",
+      "arguments": [
+        { "name": "x1", "kinds": ["numeric"] },
+        { "name": "x2", "kinds": ["numeric"], "variadic": true }
+      ],
+      "returns": {
+        "type_rule": "numeric_promotion(args)",
+        "measure_level_rule": "continuous_if_numeric(args)"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "avg",
+      "since": "0.1",
+      "category": "arithmetic",
+      "summary": "Elementwise average across multiple numeric arguments.",
+      "description": "Returns the elementwise arithmetic mean of all provided numeric arguments.",
+      "arguments": [
+        { "name": "x1", "kinds": ["numeric"] },
+        { "name": "x2", "kinds": ["numeric"], "variadic": true }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(args)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "product",
+      "since": "0.1",
+      "category": "arithmetic",
+      "summary": "Elementwise product across multiple numeric arguments.",
+      "description": "Returns the elementwise product of all provided numeric arguments.",
+      "arguments": [
+        { "name": "x1", "kinds": ["numeric"] },
+        { "name": "x2", "kinds": ["numeric"], "variadic": true }
+      ],
+      "returns": {
+        "type_rule": "numeric_promotion(args)",
+        "measure_level_rule": "continuous_if_numeric(args)"
+      },
+      "null_rule": "strict"
+    },
+
+    {
+      "name": "pow",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise exponentiation.",
+      "description": "Returns x raised elementwise to the power y.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] },
+        { "name": "y", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(args)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "sqrt",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise square root.",
+      "description": "Returns the elementwise square root of x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "exp",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise exponential.",
+      "description": "Returns the elementwise exponential of x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "log",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise natural logarithm.",
+      "description": "Returns the elementwise natural logarithm of x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "log2",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise base-2 logarithm.",
+      "description": "Returns the elementwise base-2 logarithm of x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "log10",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise base-10 logarithm.",
+      "description": "Returns the elementwise base-10 logarithm of x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "ln1p",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise natural logarithm of 1 + x.",
+      "description": "Returns the elementwise natural logarithm of 1 + x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "round",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise rounding.",
+      "description": "Returns x rounded elementwise.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "same_as(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "Rounding uses round-half-to-even."
+      ]
+    },
+    {
+      "name": "floor",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise floor.",
+      "description": "Returns the elementwise floor of x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "same_as(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "ceil",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise ceil.",
+      "description": "Returns the elementwise ceiling of x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "same_as(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "sign",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise sign function.",
+      "description": "Returns -1 for negative values, 0 for zero, and 1 for positive values.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "int64",
+        "measure_level_rule": "ordinal"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "threshold",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise threshold comparison.",
+      "description": "Returns true where x is greater than the provided threshold value.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] },
+        { "name": "threshold", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "strict"
+    },
+
+    {
+      "name": "equal",
+      "since": "0.1",
+      "category": "comparison",
+      "summary": "Elementwise equality comparison.",
+      "description": "Returns true where x and y are equal.",
+      "arguments": [
+        { "name": "x", "kinds": ["comparable"] },
+        { "name": "y", "kinds": ["comparable"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "Equality is exact at the represented dtype level.",
+        "The validator must require x and y to be mutually comparable or coercible under the active typing rules."
+      ]
+    },
+    {
+      "name": "not_equal",
+      "since": "0.1",
+      "category": "comparison",
+      "summary": "Elementwise inequality comparison.",
+      "description": "Returns true where x and y are not equal.",
+      "arguments": [
+        { "name": "x", "kinds": ["comparable"] },
+        { "name": "y", "kinds": ["comparable"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "The validator must require x and y to be mutually comparable or coercible under the active typing rules."
+      ]
+    },
+    {
+      "name": "less_than",
+      "since": "0.1",
+      "category": "comparison",
+      "summary": "Elementwise less-than comparison.",
+      "description": "Returns true where x < y.",
+      "arguments": [
+        { "name": "x", "kinds": ["comparable"] },
+        { "name": "y", "kinds": ["comparable"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "The validator must require x and y to be mutually orderable or coercible under the active typing rules."
+      ]
+    },
+    {
+      "name": "less_or_equal",
+      "since": "0.1",
+      "category": "comparison",
+      "summary": "Elementwise less-than-or-equal comparison.",
+      "description": "Returns true where x <= y.",
+      "arguments": [
+        { "name": "x", "kinds": ["comparable"] },
+        { "name": "y", "kinds": ["comparable"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "The validator must require x and y to be mutually orderable or coercible under the active typing rules."
+      ]
+    },
+    {
+      "name": "greater_than",
+      "since": "0.1",
+      "category": "comparison",
+      "summary": "Elementwise greater-than comparison.",
+      "description": "Returns true where x > y.",
+      "arguments": [
+        { "name": "x", "kinds": ["comparable"] },
+        { "name": "y", "kinds": ["comparable"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "The validator must require x and y to be mutually orderable or coercible under the active typing rules."
+      ]
+    },
+    {
+      "name": "greater_or_equal",
+      "since": "0.1",
+      "category": "comparison",
+      "summary": "Elementwise greater-than-or-equal comparison.",
+      "description": "Returns true where x >= y.",
+      "arguments": [
+        { "name": "x", "kinds": ["comparable"] },
+        { "name": "y", "kinds": ["comparable"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "The validator must require x and y to be mutually orderable or coercible under the active typing rules."
+      ]
+    },
+
+    {
+      "name": "and",
+      "since": "0.1",
+      "category": "boolean",
+      "summary": "Elementwise boolean conjunction.",
+      "description": "Returns x AND y elementwise using three-valued logic.",
+      "arguments": [
+        { "name": "x", "kinds": ["boolean"] },
+        { "name": "y", "kinds": ["boolean"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "three_valued"
+    },
+    {
+      "name": "or",
+      "since": "0.1",
+      "category": "boolean",
+      "summary": "Elementwise boolean disjunction.",
+      "description": "Returns x OR y elementwise using three-valued logic.",
+      "arguments": [
+        { "name": "x", "kinds": ["boolean"] },
+        { "name": "y", "kinds": ["boolean"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "three_valued"
+    },
+    {
+      "name": "xor",
+      "since": "0.1",
+      "category": "boolean",
+      "summary": "Elementwise boolean exclusive-or.",
+      "description": "Returns x XOR y elementwise.",
+      "arguments": [
+        { "name": "x", "kinds": ["boolean"] },
+        { "name": "y", "kinds": ["boolean"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "For XOR, null propagates strictly because neither operand alone determines the result."
+      ]
+    },
+    {
+      "name": "not",
+      "since": "0.1",
+      "category": "boolean",
+      "summary": "Elementwise boolean negation.",
+      "description": "Returns NOT x elementwise.",
+      "arguments": [
+        { "name": "x", "kinds": ["boolean"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "strict"
+    },
+
+    {
+      "name": "if",
+      "since": "0.1",
+      "category": "conditional",
+      "summary": "Elementwise conditional selection.",
+      "description": "Returns then_value where condition is true, else else_value.",
+      "arguments": [
+        { "name": "condition", "kinds": ["boolean"] },
+        { "name": "then_value", "kinds": ["any"] },
+        { "name": "else_value", "kinds": ["any"] }
+      ],
+      "returns": {
+        "type_rule": "common_supertype(args)",
+        "measure_level_rule": "common_branch_measure_level(args)"
+      },
+      "null_rule": "if_condition",
+      "notes": [
+        "Branches are evaluated lazily: only the selected branch is evaluated.",
+        "The validator must require then_value and else_value to have compatible types and measure levels."
+      ]
+    },
+    {
+      "name": "coalesce",
+      "since": "0.1",
+      "category": "null",
+      "summary": "Return the first non-null argument.",
+      "description": "Evaluates arguments left to right and returns the first non-null value.",
+      "arguments": [
+        { "name": "x1", "kinds": ["any"] },
+        { "name": "x2", "kinds": ["any"], "variadic": true }
+      ],
+      "returns": {
+        "type_rule": "common_supertype(args)",
+        "measure_level_rule": "same_as_non_null(args)"
+      },
+      "null_rule": "coalesce"
+    },
+    {
+      "name": "is_missing",
+      "since": "0.1",
+      "category": "null",
+      "summary": "Test whether the input is null.",
+      "description": "Returns true where x is missing/null.",
+      "arguments": [
+        { "name": "x", "kinds": ["any"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "is_missing"
+    },
+    {
+      "name": "isnull",
+      "since": "0.1",
+      "category": "null",
+      "summary": "Alias for is_missing.",
+      "description": "Returns true where x is missing/null. This is an alias for is_missing.",
+      "arguments": [
+        { "name": "x", "kinds": ["any"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "is_missing"
+    },
+    {
+      "name": "is_not_missing",
+      "since": "0.1",
+      "category": "null",
+      "summary": "Test whether the input is not null.",
+      "description": "Returns true where x is not missing/null.",
+      "arguments": [
+        { "name": "x", "kinds": ["any"] }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "is_not_missing"
+    },
+
+    {
+      "name": "map_values",
+      "since": "0.1",
+      "category": "mapping",
+      "summary": "Map input values through explicit key-value pairs.",
+      "description": "If x is missing, returns map_missing_to when provided, else null. Otherwise returns the mapped value for the first matching from/to pair. If no mapping matches, returns default_value when provided, else null.",
+      "arguments": [
+        { "name": "x", "kinds": ["comparable"] },
+        { "name": "pairs", "kinds": ["any"], "variadic": true }
+      ],
+      "optional_parameters": [
+        { "name": "default_value", "kinds": ["any"] },
+        { "name": "map_missing_to", "kinds": ["any"] }
+      ],
+      "returns": {
+        "type_rule": "same_as_non_null_result_values(args)",
+        "measure_level_rule": "same_as_non_null_result_values(args)"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "pairs are interpreted as from/to pairs.",
+        "The validator must require an even number of pair elements.",
+        "The validator must type-check pair elements as alternating key/value entries.",
+        "The result type is inferred from mapped values plus optional result-side defaults, not from x or key-side pair entries.",
+        "If x is missing and map_missing_to is present, map_missing_to is returned.",
+        "If x is non-missing and no pair matches, default_value is returned when present."
+      ]
+    },
+
+    {
+      "name": "min",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise minimum of two numeric arguments.",
+      "description": "Returns the elementwise minimum of x and y.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] },
+        { "name": "y", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "numeric_promotion(a,b)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "max",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Elementwise maximum of two numeric arguments.",
+      "description": "Returns the elementwise maximum of x and y.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] },
+        { "name": "y", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "numeric_promotion(a,b)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "clip",
+      "since": "0.1",
+      "category": "math",
+      "summary": "Clamp values to [lo, hi].",
+      "description": "Returns x clamped elementwise to the inclusive interval [lo, hi].",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] },
+        { "name": "lo", "kinds": ["numeric"] },
+        { "name": "hi", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "numeric_promotion(args)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "This function has the same scalar semantics as the core Clip operator, but is used inside expressions."
+      ]
+    },
+
+    {
+      "name": "concat",
+      "since": "0.1",
+      "category": "string",
+      "summary": "Elementwise string concatenation.",
+      "description": "Returns the elementwise concatenation of x and y.",
+      "arguments": [
+        { "name": "x", "kinds": ["string"] },
+        { "name": "y", "kinds": ["string"] }
+      ],
+      "returns": {
+        "type_rule": "string",
+        "measure_level_rule": "nominal"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "length",
+      "since": "0.1",
+      "category": "string",
+      "summary": "Elementwise string length.",
+      "description": "Returns the elementwise length of x.",
+      "arguments": [
+        { "name": "x", "kinds": ["string"] }
+      ],
+      "returns": {
+        "type_rule": "int64",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "Length is measured in Unicode code points, not bytes."
+      ]
+    },
+    {
+      "name": "lower",
+      "since": "0.1",
+      "category": "string",
+      "summary": "Elementwise lowercase conversion.",
+      "description": "Returns x converted to lowercase elementwise.",
+      "arguments": [
+        { "name": "x", "kinds": ["string"] }
+      ],
+      "returns": {
+        "type_rule": "string",
+        "measure_level_rule": "same_as(x)"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "upper",
+      "since": "0.1",
+      "category": "string",
+      "summary": "Elementwise uppercase conversion.",
+      "description": "Returns x converted to uppercase elementwise.",
+      "arguments": [
+        { "name": "x", "kinds": ["string"] }
+      ],
+      "returns": {
+        "type_rule": "string",
+        "measure_level_rule": "same_as(x)"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "trim",
+      "since": "0.1",
+      "category": "string",
+      "summary": "Elementwise string trim.",
+      "description": "Returns x with leading and trailing whitespace removed elementwise.",
+      "arguments": [
+        { "name": "x", "kinds": ["string"] }
+      ],
+      "returns": {
+        "type_rule": "string",
+        "measure_level_rule": "same_as(x)"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "substring",
+      "since": "0.1",
+      "category": "string",
+      "summary": "Elementwise substring extraction.",
+      "description": "Returns a substring of x using integer start and length arguments.",
+      "arguments": [
+        { "name": "x", "kinds": ["string"] },
+        { "name": "start", "kinds": ["integer"] },
+        { "name": "length", "kinds": ["integer"] }
+      ],
+      "returns": {
+        "type_rule": "string",
+        "measure_level_rule": "same_as(x)"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "start is 0-based and measured in Unicode code points.",
+        "length is measured in Unicode code points.",
+        "If start + length exceeds the string length, the result is truncated silently.",
+        "Negative start or length yields null."
+      ]
+    },
+
+    {
+      "name": "in",
+      "since": "0.1",
+      "category": "membership",
+      "summary": "Test whether a value is in a provided set.",
+      "description": "Returns true where x matches any provided set member.",
+      "arguments": [
+        { "name": "x", "kinds": ["comparable"] },
+        { "name": "s1", "kinds": ["comparable"] },
+        { "name": "s2", "kinds": ["comparable"], "variadic": true }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "The validator must require all set members to be mutually comparable with x or coercible under the active typing rules.",
+        "Duplicate set members are allowed but have no additional semantic effect."
+      ]
+    },
+    {
+      "name": "not_in",
+      "since": "0.1",
+      "category": "membership",
+      "summary": "Test whether a value is not in a provided set.",
+      "description": "Returns true where x matches none of the provided set members.",
+      "arguments": [
+        { "name": "x", "kinds": ["comparable"] },
+        { "name": "s1", "kinds": ["comparable"] },
+        { "name": "s2", "kinds": ["comparable"], "variadic": true }
+      ],
+      "returns": {
+        "type_rule": "boolean",
+        "measure_level_rule": "flag"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "The validator must require all set members to be mutually comparable with x or coercible under the active typing rules.",
+        "Duplicate set members are allowed but have no additional semantic effect."
+      ]
+    },
+
+    {
+      "name": "dateDaysSinceYear",
+      "since": "0.1",
+      "category": "datetime",
+      "summary": "Return the signed day offset from January 1 of a reference year.",
+      "description": "Returns the elementwise number of calendar days between x and the start of the given reference year.",
+      "arguments": [
+        { "name": "x", "kinds": ["date"] },
+        { "name": "year", "kinds": ["integer"] }
+      ],
+      "returns": {
+        "type_rule": "int64",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "v0.1 restricts x to DATE inputs.",
+        "The reference point is the civil date year-01-01.",
+        "The result is signed and may be negative."
+      ]
+    },
+    {
+      "name": "dateSecondsSinceYear",
+      "since": "0.1",
+      "category": "datetime",
+      "summary": "Return the signed second offset from January 1 of a reference year.",
+      "description": "Returns the elementwise number of elapsed seconds between x and the start of the given reference year.",
+      "arguments": [
+        { "name": "x", "kinds": ["timestamp"] },
+        { "name": "year", "kinds": ["integer"] }
+      ],
+      "returns": {
+        "type_rule": "int64",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "v0.1 restricts x to TIMESTAMP inputs.",
+        "The reference point is year-01-01T00:00:00.",
+        "The result is signed and may be negative."
+      ]
+    },
+    {
+      "name": "dateSecondsSinceMidnight",
+      "since": "0.1",
+      "category": "datetime",
+      "summary": "Return the second offset from midnight.",
+      "description": "Returns the elementwise number of elapsed seconds since 00:00:00.",
+      "arguments": [
+        { "name": "x", "kinds": ["time"] }
+      ],
+      "returns": {
+        "type_rule": "int64",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "v0.1 restricts x to TIME inputs.",
+        "The result is in the range supported by the TIME value domain."
+      ]
+    },
+
+    {
+      "name": "erf",
+      "since": "0.1",
+      "category": "distribution",
+      "summary": "Elementwise error function.",
+      "description": "Returns the elementwise Gauss error function of x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "stdNormalPDF",
+      "since": "0.1",
+      "category": "distribution",
+      "summary": "Elementwise standard normal probability density.",
+      "description": "Returns the elementwise probability density of the standard normal distribution at x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict"
+    },
+    {
+      "name": "stdNormalCDF",
+      "since": "0.1",
+      "category": "distribution",
+      "summary": "Elementwise standard normal cumulative probability.",
+      "description": "Returns the elementwise cumulative probability of the standard normal distribution at x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(x)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "The result is in the interval [0,1]."
+      ]
+    },
+    {
+      "name": "stdNormalIDF",
+      "since": "0.1",
+      "category": "distribution",
+      "summary": "Elementwise standard normal inverse cumulative probability.",
+      "description": "Returns the elementwise inverse cumulative probability of the standard normal distribution for p.",
+      "arguments": [
+        { "name": "p", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(p)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "p must be in the open interval (0,1)."
+      ]
+    },
+    {
+      "name": "normalPDF",
+      "since": "0.1",
+      "category": "distribution",
+      "summary": "Elementwise normal probability density.",
+      "description": "Returns the elementwise probability density of the normal distribution with mean and standard deviation at x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] },
+        { "name": "mean", "kinds": ["numeric"] },
+        { "name": "stddev", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(args)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "stddev must be greater than 0."
+      ]
+    },
+    {
+      "name": "normalCDF",
+      "since": "0.1",
+      "category": "distribution",
+      "summary": "Elementwise normal cumulative probability.",
+      "description": "Returns the elementwise cumulative probability of the normal distribution with mean and standard deviation at x.",
+      "arguments": [
+        { "name": "x", "kinds": ["numeric"] },
+        { "name": "mean", "kinds": ["numeric"] },
+        { "name": "stddev", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(args)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "stddev must be greater than 0.",
+        "The result is in the interval [0,1]."
+      ]
+    },
+    {
+      "name": "normalIDF",
+      "since": "0.1",
+      "category": "distribution",
+      "summary": "Elementwise normal inverse cumulative probability.",
+      "description": "Returns the elementwise inverse cumulative probability of the normal distribution with mean and standard deviation for p.",
+      "arguments": [
+        { "name": "p", "kinds": ["numeric"] },
+        { "name": "mean", "kinds": ["numeric"] },
+        { "name": "stddev", "kinds": ["numeric"] }
+      ],
+      "returns": {
+        "type_rule": "float_if_numeric(args)",
+        "measure_level_rule": "continuous"
+      },
+      "null_rule": "strict",
+      "notes": [
+        "p must be in the open interval (0,1).",
+        "stddev must be greater than 0."
+      ]
+    }
+  ]
+}

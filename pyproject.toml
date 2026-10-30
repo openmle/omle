@@ -1,0 +1,138 @@
+[build-system]
+# setup.py stamps omle_pb2.py with the protoc bundled in grpcio-tools, and the
+# generated file refuses to import under a protobuf runtime older than that
+# stamp. publish.yml builds one universal wheel on a single Python and installs
+# it across the whole matrix, so the protobuf floor in [project].dependencies
+# must stay >= the stamp this toolchain produces (grpcio-tools 1.84 → 7.35.1).
+# Bump the two together.
+requires = ["setuptools>=77", "setuptools-scm>=8", "wheel", "grpcio-tools>=1.62"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omle"
+dynamic = ["version"]
+description = "Python SDK for the OMLE open machine learning exchange format"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "OMLE" }]
+keywords = [
+    "machine learning", "inference", "interchange", "model format",
+    "protobuf", "pmml", "onnx", "scikit-learn", "xgboost", "lightgbm",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    # Must stay >= the gencode stamp; see [build-system].
+    "protobuf>=7.35.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/openmle/omle"
+Repository = "https://github.com/openmle/omle"
+Issues = "https://github.com/openmle/omle/issues"
+
+[project.scripts]
+omle = "omle.cli:main"
+
+[project.optional-dependencies]
+# Back-compat alias: protobuf is a required dependency as of 0.1.0.
+proto = [
+    "protobuf>=7.35.1",
+]
+convert = [
+    "omle-convert",
+]
+runtime = [
+    "omle-runtime",
+]
+# Deliberately not in [all]; install it explicitly as omle[server].
+# omle-server publishes wheels only for macosx_11_0_arm64,
+# manylinux_2_28_x86_64 and win_amd64 -- no linux-aarch64, which every other
+# component covers. Inside [all] that gap turns into a source build of the
+# C++ server (gRPC, Drogon, OpenSSL) on any uncovered platform, so a plain
+# `pip install omle[all]` would fail there rather than skip one component.
+server = [
+    "omle-server",
+]
+spark = [
+    "omle-spark",
+]
+viewer = [
+    "omle-viewer",
+]
+# Everything that has a wheel everywhere. See [server] for the exclusion.
+all = [
+    "omle-convert",
+    "omle-runtime",
+    "omle-spark",
+    "omle-viewer",
+]
+dev = [
+    "pytest>=8.0",
+    "protobuf>=7.35.1",
+    "grpcio-tools>=1.62",
+    # tools/validate_registry.py skips JSON Schema checks without this.
+    "jsonschema>=4.0",
+    "ruff>=0.16",
+    # Local enforcement of .pre-commit-config.yaml. The hook lives in
+    # .git/hooks/, which no clone inherits, so it needs a one-time
+    # `pre-commit install` per checkout; CI runs the same config.
+    "pre-commit>=4.0",
+]
+
+[tool.ruff]
+# Google Python Style Guide: 4-space indent, 80-column limit.
+line-length = 80
+indent-width = 4
+target-version = "py310"
+extend-exclude = ["src/omle/proto/omle_pb2.py"]
+
+[tool.ruff.lint]
+# Enforced today. Style rules are being adopted in stages — see CONTRIBUTING.md
+# for the rules that are not yet clean and the counts behind them.
+select = [
+    "E4", "E7", "E9",  # pycodestyle errors (imports, statements, syntax)
+    "F",               # pyflakes: undefined names, unused imports
+    "W",               # pycodestyle warnings
+    "I",               # import sorting
+    "N",               # PEP 8 / Google naming conventions
+    "B",               # flake8-bugbear: likely bugs
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Package re-exports are the public API surface, not dead imports.
+"src/omle/__init__.py" = ["F401"]
+"src/omle/ir/__init__.py" = ["F401"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["omle"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["omle*"]
+
+[tool.setuptools.package-data]
+omle = ["registry/*.json"]
+
+[tool.setuptools_scm]
+version_file = "src/omle/_version.py"
