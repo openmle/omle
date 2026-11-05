@@ -1,210 +1,282 @@
-# OMLE
+# OMLE — Open Machine Learning Exchange
 
 [![PyPI](https://img.shields.io/pypi/v/omle.svg)](https://pypi.org/project/omle/)
 [![Tests](https://github.com/openmle/omle/actions/workflows/test.yml/badge.svg)](https://github.com/openmle/omle/actions/workflows/test.yml)
 
-**Open Machine Learning Exchange** — an open, schema-aware interchange format for classical machine learning inference.
+**Portable machine learning models and pipelines across frameworks and runtimes.**
 
-OMLE provides a compact binary format (protobuf) for representing trained ML models and their preprocessing and postprocessing pipelines. It preserves model semantics at a level practical for interoperability, conversion, validation, and deployment-oriented inference across major ML ecosystems.
+**Train anywhere. Run anywhere. Keep the model semantics.**
+
+OMLE is an open, schema-aware interchange format for machine learning models and inference pipelines.
+
+OMLE provides a compact Protocol Buffers representation for trained ML models together with their preprocessing and postprocessing pipelines. It is designed for interoperability, conversion, validation, and deployment-oriented inference across frameworks and runtimes.
+
+```text
+scikit-learn ─┐                         ┌─► Python
+Spark ML ─────┤                         ├─► C/C++
+XGBoost ──────┤                         ├─► Java/Scala
+LightGBM ─────┼──► OMLE (.omle) ────────┼─► Spark
+CatBoost ─────┤                         ├─► JavaScript
+... ──────────┘                         ├─► REST / gRPC
+                                        └─► ...
+```
 
 ## Why OMLE?
 
-Classical ML has an interoperability gap:
+Machine learning models are often trained in one environment but deployed in another.
 
-- **PMML** is semantically rich but XML-based, verbose, and no meaningful updates for many years.
-- **ONNX-ML** has poor support for classical ML semantics. It lacks schema-level concepts like feature binding, missing/invalid/outlier handling, measure levels, and value domains.
-- **Framework-native formats** (pickle, joblib, XGBoost JSON, LightGBM text) are not portable and carry security risks.
+Framework-native formats are convenient inside their own ecosystems, but are not designed as general cross-framework, cross-language interchange formats.
 
-OMLE fills this gap with a modern binary format that combines PMML's semantic richness with ONNX's operational pragmatism, under a permissive license.
+OMLE provides:
 
-| Capability | PMML | ONNX-ML | OMLE |
-|---|---|---|---|
-| Feature schema with measure levels | ✓ | ✗ | ✓ |
-| Missing / invalid / outlier handling | ✓ | ✗ | ✓ |
-| Structured ML models (trees, tree ensembles, linear, SVM, MLP, naive Bayes, clustering, anomaly detection) | ✓ | partial | ✓ |
-| Generic ML models (KNN) | ✗ | ✗ | ✓ |
-| Generic operator graph | ✗ | ✓ | ✓ |
-| Embedded verification, warm-up and sample inputs | partial | ✗ | ✓ |
-| Binary format | ✗ | ✓ | ✓ |
-| Versioned operator registry | ✗ | ✓ | ✓ |
-| Permissive license | ✓ | ✓ | ✓ |
+- **Portable model representation** independent of the original training framework
+- **Complete inference pipelines** including preprocessing, model scoring, and postprocessing
+- **Structured classical ML semantics** for trees, ensembles, linear models, SVM, clustering, and more
+- **Explicit feature and target schemas**
+- **Compact Protocol Buffers serialization**
+- **Embedded verification, warm-up, and sample data**
+- **Versioned operators and functions**
+- **Cross-language inference**
+
+OMLE uses a hybrid representation combining a logical schema, an operator graph, and structured model definitions where preserving ML semantics matters.
+
+For the detailed design, see the [OMLE documentation](docs/README.md).
 
 ## Installation
 
-The `omle` Python package is the reference implementation: the in-memory IR, protobuf serialization, validation, and the `omle` CLI.
+The `omle` Python package provides the reference implementation: the in-memory IR, protobuf serialization, validation, and CLI.
 
 ```bash
-# Core SDK (IR types, protobuf I/O, validation, CLI)
+# Core SDK
 pip install omle
 
-# With individual components
-pip install "omle[convert]"   # converters (scikit-learn, Spark ML, XGBoost, LightGBM, CatBoost)
-pip install "omle[runtime]"   # C++ inference runtime
-pip install "omle[server]"    # Open Inference Protocol server (REST + gRPC)
-pip install "omle[spark]"     # Spark ML transformer for PySpark
-pip install "omle[viewer]"    # Jupyter / browser DAG viewer
+# Optional components
+pip install "omle[convert]"   # converters
+pip install "omle[runtime]"   # native C++ inference runtime
+pip install "omle[server]"    # REST + gRPC inference server
+pip install "omle[spark]"     # Spark ML integration
+pip install "omle[viewer]"    # interactive model viewer
 
-# Everything except the server, which has narrower platform coverage
+# Everything except the server
 pip install "omle[all]"
 ```
 
-Requires Python 3.10+. `protobuf` is the only required dependency.
+Requires **Python 3.10+**. `protobuf` is the only required dependency of the core SDK.
 
 ## Quick Start
+
+### Convert a trained model
+
+Model conversion is provided by [`omle-convert`](https://github.com/openmle/omle-convert).
+
+```python
+from omle import export_omle
+
+# scikit-learn, XGBoost, LightGBM, CatBoost
+export_omle(
+    sklearn_pipeline,
+    "model.omle",
+    X=X_test,
+)
+```
+
+Spark ML pipelines are supported as well:
+
+```python
+export_omle(
+    pipeline_model,
+    "spark_model.omle",
+    dataset=train_df,
+)
+```
+
+OMLE converts supported **complete pipelines**, including preprocessing stages, rather than only the final estimator.
+
+To create an in-memory OMLE model:
+
+```python
+from omle import to_omle
+
+model = to_omle(sklearn_pipeline, X=X_test)
+```
+
+### Load, validate, and run inference
 
 ```python
 import omle
 
-# Load a model — format is inferred from the extension
-# (.omle / .pb / .bin → protobuf, .json → JSON)
 model = omle.load("model.omle")
 
-# Validate against structural rules and the operator/function registries
 result = omle.validate(model)
 if not result.is_valid:
     print(result)
 
-# Inspect
-print(model.metadata.format_version)
-for fw in model.metadata.source_frameworks:
-    print(fw.name, fw.version, fw.role)
-for node in model.nodes:
-    print(node.name, f"{node.domain}.{node.op}")
-
-# Score it — scikit-learn's calling convention (requires omle-runtime)
-y_pred = model.predict(X_test)         # (n_samples,)
-proba = model.predict_proba(X_test)    # (n_samples, n_classes)
-
-# Those two cache a runtime model; after editing the document, drop the handle
-model.invalidate_runtime()
-
-# to_runtime() always builds fresh and caches nothing — hold it to score
-# repeatedly (immutable and thread-safe)
-runtime = model.to_runtime(n_threads=4)
-y_pred = runtime.predict(X_test)
-
-# Round-trip to JSON for diffing or hand-editing
-omle.save(model, "model.json")
+predictions = model.predict(X_test)
 ```
 
-Converting a trained model requires `omle-convert`:
+For classification models:
 
 ```python
-from omle import export_omle, to_omle
-
-# scikit-learn, XGBoost, LightGBM, CatBoost — pass the fitted model
-export_omle(sklearn_pipeline, "model.omle", X=X_test)
-
-# Spark ML — pass a fitted PipelineModel; dataset supplies verification and sample rows
-export_omle(pipeline_model, "spark_model.omle", dataset=train_df)
-
-# to_omle returns the OMLEModel instead of writing a file — inspect, edit or
-# score it in memory
-model = to_omle(sklearn_pipeline, X=X_test)
-y_pred = model.predict(X_test)
+probabilities = model.predict_proba(X_test)
 ```
+
+For repeated inference:
+
+```python
+runtime = model.to_runtime(n_threads=4)
+predictions = runtime.predict(X_test)
+```
+
+The native runtime is immutable and thread-safe.
+
+For model inspection, JSON serialization, validation details, and runtime configuration, see the [documentation](docs/README.md).
 
 ## Command-Line Interface
 
-The `omle` CLI provides tools for working with model files:
+The `omle` CLI provides common tools for working with OMLE models.
 
 ```bash
-# Validate a model file
+# Validate
 omle validate model.omle
-omle validate model.omle --no-registry
 
-# Inspect a model's structure
+# Inspect
 omle inspect model.omle
 omle inspect model.omle --section nodes
 omle inspect model.omle --section metadata
 omle inspect model.omle --json
 
-# Open the interactive DAG viewer in a browser (requires omle-viewer).
-# The file is optional — omit it to open on the drop target.
-omle view model.omle
-omle view
-
-# Convert a model to OMLE format (requires omle-convert).
-# The source framework is auto-detected from the file contents or extension.
+# Convert
 omle convert model.joblib    output.omle   # scikit-learn
 omle convert saved_pipeline/ output.omle   # Spark ML
-omle convert model.json      output.omle   # XGBoost JSON (or CatBoost JSON)
+omle convert model.json      output.omle   # XGBoost / CatBoost JSON
 omle convert model.txt       output.omle   # LightGBM
-omle convert model.cbm       output.omle   # CatBoost native
+omle convert model.cbm       output.omle   # CatBoost
 
-# Score a model over a CSV of features (requires omle-runtime).
-# Input CSV: one sample per line, comma-separated floats, no header.
-# Predictions are written to the output file; stdout reports what was scored.
+# Predict
 omle predict model.omle features.csv predictions.csv
+
+# Open the model viewer
+omle view model.omle
 ```
 
-`omle convert` and `omle predict` forward all arguments to `omle-convert` and
-`omle-predict` respectively; see the
-[omle-convert](https://github.com/openmle/omle-convert) and
-[omle-runtime](https://github.com/openmle/omle-runtime) READMEs for their full
-option sets.
+`omle convert` and `omle predict` delegate to the converter and runtime packages respectively. See the [`omle-convert`](https://github.com/openmle/omle-convert) and [`omle-runtime`](https://github.com/openmle/omle-runtime) READMEs for their full option sets.
 
-## Design
+## Supported Frameworks
 
-OMLE uses a hybrid representation:
-
-- **Logical schema** — named features and targets with types, measure levels, value domains, and preprocessing policies (missing, invalid, outlier handling)
-- **Graph nodes** — a DAG of named operators spanning preprocessing, model scoring, and postprocessing
-- **Structured model bodies** — dedicated proto messages for classical ML families where preserving high-level semantics matters
-
-### Data Model
-
-Every named value in the graph has shape `[N, ...]`, where `N` is the leading row dimension. The graph operates on a namespace of named tensors — nodes consume named values and produce new named values. Structured implementations use positional indexing into a flat slot space derived from their input list.
-
-### Expression DSL
-
-OMLE includes an elementwise expression sub-DSL for per-column derived computations. Expressions operate on `[N]` columns using a versioned set of 61 primitives (arithmetic, comparison, logical, math, conditional, null handling, string, date, type conversion, value mapping). The expression language is separate from the graph operator set — graph nodes handle structurally interesting operations, expressions handle elementwise math.
-
-### Scope Isolation
-
-`CompositeNode` introduces local namespaces for subgraph isolation. Internal nodes only see names explicitly passed as inputs — no transitive visibility into enclosing scopes. This enables clean composition of preprocessing pipelines and multi-model architectures without name collisions.
-
-## Ecosystem
-
-| Package                                                         | Language | Purpose |
-|-----------------------------------------------------------------|---|---|
-| [`omle`](https://github.com/openmle/omle)                 | Python | This package — IR, protobuf I/O, validation, CLI |
-| [`omle-convert`](https://github.com/openmle/omle-convert) | Python | Converters from trained models to `.omle` |
-| [`omle-runtime`](https://github.com/openmle/omle-runtime) | C++ (Python/Java bindings) | Inference runtime |
-| [`omle-spark`](https://github.com/openmle/omle-spark)     | Scala + Python | Spark ML transformer — scores DataFrames from Scala or PySpark, cross-built for Scala 2.12/2.13 |
-| [`omle-server`](https://github.com/openmle/omle-server)   | C++ (Python package) | Open Inference Protocol (OIP) server — REST and gRPC, built on `omle-runtime` |
-| [`omle-viewer`](https://github.com/openmle/omle-viewer)   | Python + TypeScript | Interactive DAG viewer for Jupyter and the browser |
-| [`omle.js`](https://github.com/openmle/omle.js)           | TypeScript | Browser/Node loader, validator, and execution engine |
-
-## Converter Status
-
-Provided by [`omle-convert`](https://github.com/openmle/omle-convert):
+Model conversion is provided by [`omle-convert`](https://github.com/openmle/omle-convert).
 
 | Framework | Status | Notes |
 |---|---|---|
-| Scikit-Learn | Available | Pipeline walker; trees, ensembles, linear, SVM, MLP, KNN, Naive Bayes, clustering, anomaly detection, decomposition, text, preprocessing; `category_encoders` supported |
-| Spark ML | Available | Live (PySpark) and no-Spark (saved-format reader via pyarrow) paths; XGBoost4J and SynapseML LightGBM models |
-| XGBoost | Available | Sklearn wrappers, native `Booster`, and `.json` files |
-| LightGBM | Available | Sklearn wrappers, native `Booster`, and `.txt` files |
-| CatBoost | Available | Sklearn wrappers and `.cbm` / `.json` files |
-| PMML | Planned | Round-trip fidelity for the compliance audience |
+| scikit-learn | Available | Pipelines, trees, ensembles, linear models, SVM, MLP, KNN, Naive Bayes, clustering, anomaly detection, decomposition, text, preprocessing, `category_encoders` |
+| Spark ML | Available | Fitted pipelines, native Spark ML operators, XGBoost4J, SynapseML LightGBM |
+| XGBoost | Available | scikit-learn wrappers, native `Booster`, JSON models |
+| LightGBM | Available | scikit-learn wrappers, native `Booster`, text models |
+| CatBoost | Available | scikit-learn wrappers, native models, CBM and JSON |
+| PMML | Planned | Interoperability and compatibility use cases |
+| ... | Planned | Additional frameworks and model ecosystems |
 
-## Reference
+Support continues to expand as OMLE evolves toward v1.
 
-- **[Documentation](https://github.com/openmle/omle/blob/main/docs/README.md)** — proto schema, registries, versioning
-- **[Operator and function reference](https://github.com/openmle/omle/blob/main/docs/reference/README.md)** — every ML model family, feature operator and expression primitive, generated from the registries
+## OMLE Ecosystem
+
+OMLE is developed as a set of focused open-source projects.
+
+| Project | Language | Purpose |
+|---|---|---|
+| [`omle`](https://github.com/openmle/omle) | Python / Protobuf | Specification, IR, serialization, validation, CLI |
+| [`omle-convert`](https://github.com/openmle/omle-convert) | Python | Convert trained models and pipelines to OMLE |
+| [`omle-runtime`](https://github.com/openmle/omle-runtime) | C++ / Python / Java | High-performance inference runtime |
+| [`omle-server`](https://github.com/openmle/omle-server) | C++ / Python | REST and gRPC inference server |
+| [`omle-spark`](https://github.com/openmle/omle-spark) | Scala / Python | Native OMLE scoring for Spark DataFrames |
+| [`omle.js`](https://github.com/openmle/omle.js) | TypeScript | Browser and Node.js loader, validator, and runtime |
+| [`omle-viewer`](https://github.com/openmle/omle-viewer) | TypeScript / Python | Interactive model visualization and debugging |
+
+All projects are hosted under the [OpenMLE GitHub organization](https://github.com/openmle).
+
+## Model Viewer
+
+OMLE models can be inspected visually using the interactive DAG viewer.
+
+Launch it locally:
+
+```bash
+omle view model.omle
+```
+
+Or use the hosted viewer directly in your browser: **[Open the viewer →](https://openmle.github.io/playground/viewer.html)**
+
+The viewer runs entirely in the browser, so model files are not uploaded to a server. See [`omle-viewer`](https://github.com/openmle/omle-viewer) for details.
+
+## OMLE, PMML, and ONNX
+
+OMLE does not attempt to replace every model format. Different formats have different design centers.
+
+- **Framework-native formats** are convenient when training and inference stay inside the same ecosystem.
+- **PMML** provides rich semantic representations for classical ML and established many important concepts around schemas, preprocessing, model semantics, and verification.
+- **ONNX** provides a general operator graph and is widely used for neural-network portability.
+- **OMLE** focuses on portable classical ML inference, tabular pipelines, structured model semantics, explicit schemas, and deployment-oriented interoperability.
+
+| Capability | PMML | ONNX / ONNX-ML | OMLE |
+|---|:---:|:---:|:---:|
+| Explicit feature schema | ✓ | Limited | ✓ |
+| Missing / invalid / outlier policies | ✓ | Limited | ✓ |
+| Structured classical ML models | ✓ | Partial | ✓ |
+| Generic operator graph | Limited | ✓ | ✓ |
+| Complete preprocessing pipelines | ✓ | ✓ | ✓ |
+| Embedded verification data | Partial | Limited | ✓ |
+| Compact binary representation | ✗ | ✓ | ✓ |
+| Versioned operator/function registries | ✗ | ✓ | ✓ |
+
+For the detailed OMLE design and specification, see [`docs/`](docs/README.md).
+
+## Documentation
+
+Technical documentation is available under [`docs/`](docs/README.md), including:
+
+- protobuf schema
+- logical model schema
+- graph semantics
+- structured models
+- operators and functions
+- expression DSL
+- composite scoping
+- model verification
+- validation
+- versioning
+
+The generated [operator and function reference](docs/reference/README.md) is derived directly from the versioned registries.
+
+## Project Status
+
+OMLE is under active development.
+
+The protobuf schema, registries, converters, and runtimes are being stabilized toward the first **OMLE v1** release.
+
+Before v1, backwards-incompatible changes may still occur when they materially improve the specification.
 
 ## Contributing
 
-OMLE is in active development. The proto schema and registries are stabilizing toward a v1 release. See [CONTRIBUTING.md](https://github.com/openmle/omle/blob/main/CONTRIBUTING.md) for development setup and the checks a change needs to pass, and [CODE_OF_CONDUCT.md](https://github.com/openmle/omle/blob/main/CODE_OF_CONDUCT.md) for community expectations.
+Contributions and feedback are welcome.
 
-Contributions are welcome in:
+Areas where contributions are especially useful include:
 
-- Converter implementations
-- Runtime implementations
-- Validation tooling
-- Documentation and specification refinements
+- converter implementations
+- runtime implementations
+- additional model and preprocessing support
+- validation and verification tooling
+- documentation and specification improvements
+- interoperability and real-world deployment use cases
+
+If OMLE does not yet support a framework, model type, or deployment environment you use, please open an issue and tell us about your use case.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution guidelines.
+
+Community participation follows [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## License
 
-[Apache License v2.0](https://github.com/openmle/omle/blob/main/LICENSE)
+OMLE is licensed under the [Apache License 2.0](LICENSE).
+
+---
+
+**Train anywhere. Run anywhere. Keep the model semantics.**
