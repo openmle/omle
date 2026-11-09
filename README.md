@@ -65,6 +65,8 @@ Requires **Python 3.10+**. `protobuf` is the only required dependency of the cor
 
 ## Quick Start
 
+For complete workflows covering training, export, interactive visualization, and comparison of native and OMLE predictions, see the [`omle-models`](https://github.com/openmle/omle-models) notebooks.
+
 ### Convert a trained model
 
 Model conversion is provided by [`omle-convert`](https://github.com/openmle/omle-convert).
